@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib as mpl
+from thefuzz import process
+from sklearn.preprocessing import StandardScaler
 
 # =========================================================
 # ขั้นตอนที่ 1: โหลดข้อมูลและตั้งชื่อคอลัมน์ใหม่ให้เข้าใจง่าย
@@ -99,7 +101,6 @@ df['Heard_Calvora'] = df['Heard_Calvora'].map({'เคย': 1})
 df['Calvora_Tagline_Awareness'] = df['Calvora_Tagline_Awareness'].map({'รู้': 1, 'ไม่รู้': 0})
 df['Know_Ebisen'] = df['Know_Ebisen'].map({'รู้จัก และเคยทาน': 2, 'รู้จัก แต่ไม่เคยทาน': 1, 'ไม่รู้จักเลย': 0})
 df['Age'] = df['Age'].map({'ต่ำกว่า 20ปี': 0, '20-29ปี': 1, '30-39ปี': 2, '40-49ปี': 3, '50ปี ขึ้นไป': 4})
-df['Gender'] = df['Gender'].map({'หญิง': 0, 'ชาย': 1, 'LGBTQ+': 2})
 df['Believe_Ebisen_Shrimp'] = df['Believe_Ebisen_Shrimp'].map({'เชื่อ': 1, 'ไม่เชื่อ': 0})
 df['Try_New_Flavor'] = df['Try_New_Flavor'].map({'ลอง': 1, 'ไม่ลอง': 0})
 df['Like_Stronger_Ebisen_Flavor'] = df['Like_Stronger_Ebisen_Flavor'].map({'ชอบรสเข้มข้น อยากลอง': 1, 'ไม่อยากลอง': 0})
@@ -319,6 +320,26 @@ def Reason_Not_Willing(text):
 df['Reason_Not_Willing_Category'] = df['Reason_Not_Willing'].apply(Reason_Not_Willing)
 df.drop(columns=['Reason_Not_Willing'], inplace=True)
 
+Gender = pd.get_dummies(df['Gender'], prefix='Gender', dtype=int)
+df = pd.concat([df, Gender], axis=1)
+df.drop(columns=['Gender'], inplace=True)
+
+cols_to_scale = [
+    'Know_Ebisen',
+    'Age',
+    'Calvora_Tagline_Reflection',
+    'Purchase_Factor_Quality_Ingredients', 
+    'Purchase_Factor_Tasty', 
+    'Purchase_Factor_Many_Flavors', 
+    'Purchase_Factor_Crispy', 
+    'Purchase_Factor_Healthy'
+]
+
+# สั่ง Scale พร้อมกันทีเดียว
+scaler = StandardScaler()
+df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+
+
 col_A = ['Known_Snack_Products', 'Calvora_Natural_Ingredient_Trust_Other', 'Tasted_Snack_Brands', 'Ebisen_Flavors' , 'Calvora_Image_Association']
 col_N = ['Known_Snack_', 'Calvora_Natural_Ingredient_', 'Tasted_Snack_', 'Ebisen_Flavor_', 'Calvora_Image_']
 for idx, col in enumerate(col_A):
@@ -332,6 +353,17 @@ df.drop(columns=['Believe_Ebisen_Shrimp_Reason', 'Believe_Ebisen_Shrimp_Reason_2
 # ลบคอลัมน์ที่ชื่อซ้ำกันออก
 df = df.loc[:, ~df.columns.duplicated()]
 
+# เช็คคอลัมน์ตัวเลขที่มีค่า 2 หรือมากกว่า เพื่อเตรียมการ Scaling ต่อ
+numeric_cols = df.select_dtypes(include=[np.number]).columns
+columns_with_ge2 = []
+for col in numeric_cols:
+    if (df[col] >= 2).any():
+        columns_with_ge2.append(col)
+
+print("Columns with values >= 2 (for scaling):")
+for col in columns_with_ge2:
+    print(f"- {col}: max={df[col].max()}, count>=2={(df[col] >= 2).sum()}")
+
 #'''
 string_cols = df.select_dtypes(include=['object']).columns
 print(df[string_cols].info())
@@ -341,6 +373,8 @@ for col in string_cols:
     print("\n")
     
 #'''
+
+
 
 #print(df['Known_Snack_คาลโวร่า'])
 # =========================================================
