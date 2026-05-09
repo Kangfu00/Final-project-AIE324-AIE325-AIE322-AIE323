@@ -1,9 +1,7 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib as mpl
 from thefuzz import process
+from sklearn.impute import KNNImputer
 
 # =========================================================
 # ขั้นตอนที่ 1: โหลดข้อมูลและตั้งชื่อคอลัมน์ใหม่ให้เข้าใจง่าย
@@ -306,6 +304,12 @@ for idx, col in enumerate(col_A):
 df.drop(columns=['Believe_Ebisen_Shrimp_Reason', 'Believe_Ebisen_Shrimp_Reason_2' , 'Heard_Calvora'], inplace=True)
 # ลบคอลัมน์ที่ชื่อซ้ำกันออก
 df = df.loc[:, ~df.columns.duplicated()]
+
+numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+
+# ใช้ KNN Imputer หาคนที่มีลักษณะคล้ายกัน 5 คน (n_neighbors=5) มาช่วยทายค่า
+knn_imputer = KNNImputer(n_neighbors=5)
+df[numeric_cols] = knn_imputer.fit_transform(df[numeric_cols])
 
 #'''
 string_cols = df.select_dtypes(include=['object']).columns
