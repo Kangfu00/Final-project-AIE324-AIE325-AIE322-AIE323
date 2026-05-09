@@ -55,11 +55,13 @@ X_train, X_test, y_train, y_test = train_test_split(
 models = {
     "Random Forest": RandomForestClassifier(
         n_estimators=200,
-        random_state=42
+        random_state=42,
+        class_weight="balanced"
     ),
 
     "Logistic Regression": LogisticRegression(
-        max_iter=1000
+        max_iter=1000,
+        class_weight="balanced",
     ),
 
     "Decision Tree": DecisionTreeClassifier(
