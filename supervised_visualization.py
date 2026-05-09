@@ -1,31 +1,38 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pickle
 
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 
 
-# โหลดข้อมูลที่แปลงแล้ว
 df = pd.read_csv("BU_Data_transformed.csv")
 
-# กำหนด Target ที่ต้องการทำนาย
-target = "Try_New_Flavor"
+df["Sales_Opportunity"] = (
+    (df["Try_New_Flavor"] == 1) |
+    (df["Like_Stronger_Ebisen_Flavor"] == 1)
+).astype(int)
 
-# ลบคอลัมน์ Target และคอลัมน์ที่ใกล้เคียงกับคำตอบเกินไป
-drop_cols = [
-    target,
-    "Like_Stronger_Ebisen_Flavor"
+features = [
+    "Know_Ebisen",
+    "Age",
+    "Purchase_Factor_Tasty",
+    "Purchase_Factor_Many_Flavors",
+    "Purchase_Factor_Crispy",
+    "Purchase_Factor_Healthy",
+    "Purchase_Factor_Quality_Ingredients",
+    "Believe_Ebisen_Shrimp",
+    "Ebisen_Flavor_Original",
+    "Known_Snack_เอบินาริ",
+    "Tasted_Snack_เอบินาริ"
 ]
 
-# เลือกเฉพาะข้อมูลตัวเลขเพื่อใช้เป็น Feature
-X = df.drop(columns=drop_cols, errors="ignore")
-X = X.select_dtypes(include=["int64", "float64"])
+available_features = [col for col in features if col in df.columns]
 
-y = df[target]
+X = df[available_features]
+y = df["Sales_Opportunity"]
 
-# แบ่งข้อมูล Train / Test
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -34,26 +41,18 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
-# สร้างโมเดล Random Forest
-model = RandomForestClassifier(
-    n_estimators=200,
-    random_state=42,
-    class_weight="balanced"
-)
+with open("supervised_model.pkl", "rb") as file:
+    model = pickle.load(file)
 
-# Train โมเดล
-model.fit(X_train, y_train)
-
-# Predict ผลลัพธ์
 y_pred = model.predict(X_test)
 
-# แสดงผล Accuracy
 accuracy = accuracy_score(y_test, y_pred)
-print("Accuracy:", accuracy)
-print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
+f1 = f1_score(y_test, y_pred)
 
-# สร้าง Confusion Matrix
+print("Best Model: Logistic Regression")
+print("Accuracy:", accuracy)
+print("F1-Score:", f1)
+
 cm = confusion_matrix(y_test, y_pred)
 
 plt.figure(figsize=(6, 5))
@@ -62,45 +61,43 @@ sns.heatmap(
     annot=True,
     fmt="d",
     cmap="Blues",
-    xticklabels=["Not Try", "Try"],
-    yticklabels=["Not Try", "Try"]
+    xticklabels=["Low Opportunity", "High Opportunity"],
+    yticklabels=["Low Opportunity", "High Opportunity"]
 )
 
-plt.title("Confusion Matrix: Try New Flavor Prediction")
+plt.title("Confusion Matrix: Sales Opportunity Prediction")
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.tight_layout()
-plt.savefig("confusion_matrix.png", dpi=300)
+plt.savefig("confusion_matrix_sales_opportunity.png", dpi=300)
 plt.show()
 
-
-# สร้าง Feature Importance
-importance = pd.DataFrame({
-    "Feature": X.columns,
-    "Importance": model.feature_importances_
+coef_df = pd.DataFrame({
+    "Feature": available_features,
+    "Coefficient": model.coef_[0]
 })
 
-importance = importance.sort_values(
-    by="Importance",
+coef_df["Abs_Coefficient"] = coef_df["Coefficient"].abs()
+
+coef_df = coef_df.sort_values(
+    by="Abs_Coefficient",
     ascending=False
 ).head(10)
 
 plt.figure(figsize=(10, 6))
 sns.barplot(
-    data=importance,
-    x="Importance",
+    data=coef_df,
+    x="Abs_Coefficient",
     y="Feature"
 )
 
-plt.title("Top 10 Important Features for Try New Flavor Prediction")
-plt.xlabel("Importance Score")
+plt.title("Top 10 Feature Effects: Sales Opportunity")
+plt.xlabel("Effect Strength")
 plt.ylabel("Feature")
 plt.tight_layout()
-plt.savefig("feature_importance.png", dpi=300)
+plt.savefig("feature_effect_sales_opportunity.png", dpi=300)
 plt.show()
 
-
-print("\nสร้าง Visualization เสร็จแล้ว")
-print("ได้ไฟล์:")
-print("- confusion_matrix.png")
-print("- feature_importance.png")
+print("\nสร้าง Visualization ใหม่เสร็จแล้ว")
+print("- confusion_matrix_sales_opportunity.png")
+print("- feature_effect_sales_opportunity.png")
