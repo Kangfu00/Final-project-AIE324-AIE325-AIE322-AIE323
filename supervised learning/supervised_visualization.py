@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 
 
+plt.rcParams['font.family'] = 'Tahoma' 
+
 df = pd.read_csv("BU_Data_transformed.csv")
 
 df["Sales_Opportunity"] = (
@@ -14,18 +16,31 @@ df["Sales_Opportunity"] = (
     (df["Like_Stronger_Ebisen_Flavor"] == 1)
 ).astype(int)
 
+# ==========================================
+# 💡 เพิ่มโค้ด Feature Engineering ตรงนี้
+# ==========================================
+# 1. กลุ่มคนเน้นคุณภาพชีวิต (Quality Seeker)
+df["Quality_Seeker_Score"] = df["Purchase_Factor_Quality_Ingredients"] + df["Purchase_Factor_Healthy"]
+
+# 2. กลุ่มคนเชื่อมั่นในแบรนด์ (Brand Trust Score)
+df["Brand_Trust_Score"] = df["Believe_Ebisen_Shrimp"] + df["Calvora_Tagline_Reflection"]
+# ==========================================
+
+# เลือกเฉพาะ Feature ที่หน้าเว็บใช้จริง (เพิ่ม 2 ตัวใหม่เข้าไปด้านล่างสุด)
 features = [
-    "Know_Ebisen",
-    "Age",
-    "Purchase_Factor_Tasty",
-    "Purchase_Factor_Many_Flavors",
-    "Purchase_Factor_Crispy",
-    "Purchase_Factor_Healthy",
     "Purchase_Factor_Quality_Ingredients",
+    "Calvora_Tagline_Reflection",
     "Believe_Ebisen_Shrimp",
-    "Ebisen_Flavor_Original",
-    "Known_Snack_เอบินาริ",
-    "Tasted_Snack_เอบินาริ"
+    "Purchase_Factor_Many_Flavors",
+    "Purchase_Factor_Healthy",
+    "Calvora_Association_General_Snack_Association",
+    "Purchase_Factor_Crispy",
+    "Age",
+    "Know_Ebisen",
+    "Strength_มีคุณภาพดี (Good quality)",
+    "Calvora_Association_Calvora_Association",
+    "Quality_Seeker_Score",  # <-- เพิ่มเข้ามา
+    "Brand_Trust_Score"      # <-- เพิ่มเข้ามา
 ]
 
 available_features = [col for col in features if col in df.columns]
