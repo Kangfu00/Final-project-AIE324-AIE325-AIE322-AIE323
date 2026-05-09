@@ -2,31 +2,47 @@ import pandas as pd
 import pickle
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import classification_report
+from sklearn.metrics import f1_score
+
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
 
-
-# โหลดข้อมูลที่แปลงแล้ว
+# โหลดข้อมูล
 df = pd.read_csv("BU_Data_transformed.csv")
 
-# กำหนด Target ที่ต้องการทำนาย
-# 1 = อยากลองรสชาติใหม่
-# 0 = ไม่อยากลอง
-target = "Try_New_Flavor"
+# สร้าง Super Target
+df["Sales_Opportunity"] = (
+    (df["Try_New_Flavor"] == 1) |
+    (df["Like_Stronger_Ebisen_Flavor"] == 1)
+).astype(int)
 
-# ลบคอลัมน์ที่ไม่ควรเอาไปเป็น Feature
-drop_cols = [
-    target,
-    "Like_Stronger_Ebisen_Flavor"
+# เลือกเฉพาะ Feature ที่หน้าเว็บใช้จริง
+features = [
+    "Know_Ebisen",
+    "Age",
+    "Purchase_Factor_Tasty",
+    "Purchase_Factor_Many_Flavors",
+    "Purchase_Factor_Crispy",
+    "Purchase_Factor_Healthy",
+    "Purchase_Factor_Quality_Ingredients",
+    "Believe_Ebisen_Shrimp",
+    "Ebisen_Flavor_Original",
+    "Known_Snack_เอบินาริ",
+    "Tasted_Snack_เอบินาริ"
 ]
 
-# เลือกเฉพาะคอลัมน์ตัวเลขเท่านั้น
-X = df.drop(columns=drop_cols, errors="ignore")
-X = X.select_dtypes(include=["int64", "float64"])
+target = "Sales_Opportunity"
 
+# กันกรณีบางคอลัมน์ไม่มี
+available_features = [f for f in features if f in df.columns]
+
+X = df[available_features]
 y = df[target]
 
-# แบ่งข้อมูล Train / Test
+# Train / Test Split
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -35,42 +51,68 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
-# สร้างโมเดล Random Forest
-model = RandomForestClassifier(
-    n_estimators=200,
-    random_state=42,
-    class_weight="balanced"
-)
+# สร้างโมเดลหลายแบบ
+models = {
+    "Random Forest": RandomForestClassifier(
+        n_estimators=200,
+        random_state=42
+    ),
 
-# Train โมเดล
-model.fit(X_train, y_train)
+    "Logistic Regression": LogisticRegression(
+        max_iter=1000
+    ),
 
-# ทำนายผล
-y_pred = model.predict(X_test)
+    "Decision Tree": DecisionTreeClassifier(
+        random_state=42
+    )
+}
 
-# ประเมินผลโมเดล
-accuracy = accuracy_score(y_test, y_pred)
+best_model = None
+best_score = 0
+best_name = ""
 
-print("Accuracy:", accuracy)
-print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
+print("\n========== MODEL BENCHMARK ==========\n")
 
-print("\nConfusion Matrix:")
-print(confusion_matrix(y_test, y_pred))
+for name, model in models.items():
 
-# ดู Feature ที่สำคัญที่สุด
-importance = pd.DataFrame({
-    "Feature": X.columns,
-    "Importance": model.feature_importances_
-})
+    model.fit(X_train, y_train)
 
-importance = importance.sort_values(by="Importance", ascending=False)
+    y_pred = model.predict(X_test)
 
-print("\nTop 10 Important Features:")
-print(importance.head(10))
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
 
-# Save โมเดลไว้ใช้ใน Dashboard
+    print(f"{name}")
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"F1-Score: {f1:.4f}")
+
+    print(classification_report(y_test, y_pred))
+    print("-" * 50)
+
+    if f1 > best_score:
+        best_score = f1
+        best_model = model
+        best_name = name
+
+# Save Best Model
 with open("supervised_model.pkl", "wb") as file:
-    pickle.dump(model, file)
+    pickle.dump(best_model, file)
 
-print("\nบันทึกโมเดลเรียบร้อย: supervised_model.pkl")
+print(f"\nBest Model: {best_name}")
+print("บันทึกโมเดลเรียบร้อย: supervised_model.pkl")
+
+# Feature Importance
+if best_name == "Random Forest":
+
+    importance = pd.DataFrame({
+        "Feature": X.columns,
+        "Importance": best_model.feature_importances_
+    })
+
+    importance = importance.sort_values(
+        by="Importance",
+        ascending=False
+    )
+
+    print("\nTop Important Features")
+    print(importance)
