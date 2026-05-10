@@ -5,178 +5,205 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score, silhouette_samples
 from math import pi
 import warnings
 
-warnings.filterwarnings('ignore') # ปิดแจ้งเตือนจุกจิก
-
-# --- ตั้งค่าฟอนต์ภาษาไทย ---
+warnings.filterwarnings('ignore')
 plt.rcParams['font.family'] = 'Tahoma' # หรือ 'Arial Unicode MS' สำหรับ Mac
 
 # ==========================================
 # 1. โหลดข้อมูล
 # ==========================================
-df = pd.read_csv("BU_Data_transformed.csv")
+df_raw = pd.read_csv("BU_Data_transformed.csv")
+print(f"ข้อมูลตั้งต้น: {len(df_raw)} คน")
 
 # ==========================================
-# 2. Feature Selection แบบ Unsupervised จริงๆ
+# 2. Feature Selection
 # ==========================================
-# ดึงคอลัมน์ที่เป็น "พฤติกรรม/ทัศนคติ" ทั้งหมด 
 behavioral_cols = [
-    col for col in df.columns 
-    if 'Purchase_Factor_' in col 
-    or 'Strength_' in col 
-    or 'Time_' in col 
-    or 'Calvora_Natural_Ingredient_' in col
+    col for col in df_raw.columns
+    if ('Purchase_Factor_' in col
+        or 'Strength_' in col
+        or 'Calvora_Natural_Ingredient_' in col
+        or ('Time_' in col and col != 'Snack_Time_Category'))
 ]
-
-print(f"ดึงคอลัมน์พฤติกรรมมาทั้งหมด {len(behavioral_cols)} คอลัมน์")
-
-X = df[behavioral_cols].copy()
-
-# ---------------------------------------------------------
-# 🌟 จุดที่แก้ไข: จัดการข้อมูลที่เป็นตัวหนังสือ (Categorical Data)
-# ---------------------------------------------------------
-# ใช้ get_dummies แปลงคอลัมน์ที่เป็นข้อความ (เช่น 'Watching_Media') ให้กลายเป็นเลข 0, 1 อัตโนมัติ
-X_encoded = pd.get_dummies(X)
-
-# เติมค่าว่างด้วย 0 (ต้องทำหลังแปลงข้อความเสร็จแล้ว)
-X_encoded.fillna(0, inplace=True)
-
-print(f"หลังจากแปลงข้อความเป็นตัวเลข ได้คอลัมน์รวมที่จะใช้สอน AI ทั้งหมด {X_encoded.shape[1]} คอลัมน์")
-
-# สเกลข้อมูลให้เป็นมาตรฐาน (Standardization)
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X_encoded)
+X_raw = pd.get_dummies(df_raw[behavioral_cols].copy()).fillna(0)
+X_scaled_all = StandardScaler().fit_transform(X_raw)
 
 # ==========================================
-# 3. สร้างกราฟ Elbow Method หาจำนวนกลุ่ม (K) ที่ดีที่สุด
+# 3. ลบ Outlier
 # ==========================================
-print("\nกำลังสร้างกราฟ Elbow Method...")
-inertia = []
-K_range = range(1, 11) 
+km_detect = KMeans(n_clusters=4, random_state=42, n_init=20)
+labels_detect = km_detect.fit_predict(X_scaled_all) + 1
+cluster_sizes = pd.Series(labels_detect).value_counts()
+outlier_cluster_id = cluster_sizes.idxmin()
+
+if cluster_sizes[outlier_cluster_id] == 1:
+    outlier_mask = labels_detect == outlier_cluster_id
+    outlier_indices = np.where(outlier_mask)[0]
+    df = df_raw.drop(index=outlier_indices).reset_index(drop=True)
+    X_clean = np.delete(X_scaled_all, outlier_indices, axis=0)
+else:
+    df = df_raw.copy()
+    X_clean = X_scaled_all
+
+# ==========================================
+# 3.5 ลดมิติข้อมูล (PCA) ก่อนทำ Clustering เพื่อดันคะแนน
+# ==========================================
+pca_for_cluster = PCA(n_components=3, random_state=42)
+X_model = pca_for_cluster.fit_transform(X_clean)
+
+# ==========================================
+# 4. ค้นหา K ด้วย Elbow + Silhouette Score
+# ==========================================
+inertia, sil_scores = [], []
+K_range = range(2, 11)
 
 for k in K_range:
-    kmeans_temp = KMeans(n_clusters=k, random_state=42)
-    kmeans_temp.fit(X_scaled)
-    inertia.append(kmeans_temp.inertia_)
+    km = KMeans(n_clusters=k, random_state=42, n_init=20)
+    labels = km.fit_predict(X_model)
+    inertia.append(km.inertia_)
+    sil_scores.append(silhouette_score(X_model, labels))
 
-plt.figure(figsize=(9, 5))
-plt.plot(K_range, inertia, marker='o', linestyle='-', color='#1f77b4', linewidth=2, markersize=8)
-plt.title('Elbow Method: ค้นหาจำนวนกลุ่มลูกค้าที่เหมาะสมที่สุด (Optimal K)', fontsize=16, fontweight='bold')
-plt.xlabel('จำนวนกลุ่ม (Number of Clusters - K)', fontsize=12)
-plt.ylabel('ค่า Inertia (Sum of Squared Distances)', fontsize=12)
-plt.xticks(K_range)
-plt.grid(True, linestyle='--', alpha=0.6)
+best_k = list(K_range)[sil_scores.index(max(sil_scores))]
+optimal_k = 3 # บังคับ 3 กลุ่มตามโจทย์ Business
+
+# 📊 กราฟ 1: Elbow & Silhouette
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+ax1.plot(K_range, inertia, marker='o', color='#1f77b4', linewidth=2)
+ax1.set_title('Elbow Method', fontsize=14, fontweight='bold')
+ax1.set_xlabel('จำนวนกลุ่ม (K)', fontsize=12)
+ax1.set_ylabel('Inertia', fontsize=12)
+ax1.grid(True, linestyle='--', alpha=0.5)
+
+ax2.plot(K_range, sil_scores, marker='s', color='#e67e22', linewidth=2)
+ax2.axvline(x=3, color='green', linestyle='--', alpha=0.8, label='K=3 (chosen)')
+ax2.axvline(x=best_k, color='red', linestyle='--', alpha=0.6, label=f'Best K={best_k}')
+ax2.set_title('Silhouette Score (ยิ่งสูงยิ่งดี)', fontsize=14, fontweight='bold')
+ax2.set_xlabel('จำนวนกลุ่ม (K)', fontsize=12)
+ax2.legend()
+ax2.grid(True, linestyle='--', alpha=0.5)
+plt.suptitle('การหาจำนวนกลุ่มที่เหมาะสม (Optimal K)', fontsize=14, fontweight='bold')
 plt.tight_layout()
-plt.show() # <--- ดูจุดหักศอกที่กราฟนี้
+plt.show()
 
 # ==========================================
-# 4. เลือกรันโมเดลด้วย K ที่เหมาะสม 
+# 5. รัน KMeans จริงด้วย K=3
 # ==========================================
-# 💡 หากดูกราฟ Elbow แล้วพบว่าหักศอกที่ 4 สามารถแก้เลข 3 เป็น 4 ได้เลยครับ
-optimal_k = 3 
+kmeans_final = KMeans(n_clusters=optimal_k, random_state=42, n_init=20)
+df['Cluster_ID'] = kmeans_final.fit_predict(X_model) + 1
+final_sil = silhouette_score(X_model, df['Cluster_ID'])
 
-print(f"\n💡 รัน K-Means จริง ด้วยจำนวนกลุ่ม K = {optimal_k}")
-kmeans_final = KMeans(n_clusters=optimal_k, random_state=42)
-df['Cluster_ID'] = kmeans_final.fit_predict(X_scaled) + 1 
-
-# ==========================================
-# 5. การทำ Profiling ร่วมกับข้อมูลประชากรศาสตร์ 
-# ==========================================
+print(f"\n✅ Silhouette Score (K={optimal_k}): {final_sil:.4f}")
 print("\n=== จำนวนคนในแต่ละกลุ่ม ===")
 print(df['Cluster_ID'].value_counts().sort_index())
 
-print("\n=== ข้อมูลประชากรศาสตร์ (Demographics) ของแต่ละกลุ่ม ===")
-demo_cols = ['Age', 'Gender_ชาย', 'Gender_หญิง', 'Gender_LGBTQ+']
-available_demo_cols = [col for col in demo_cols if col in df.columns]
-
-if available_demo_cols:
-    demographic_profiling = df.groupby('Cluster_ID')[available_demo_cols].mean().round(2)
-    print(demographic_profiling)
-else:
-    print("ไม่พบคอลัมน์ประชากรศาสตร์ใน Dataset นี้")
-
-# บันทึกผล
-output_filename = f"BU_Data_{optimal_k}_Segments_Unsupervised.csv"
-df.to_csv(output_filename, index=False)
-print(f"\n✅ บันทึกไฟล์ {output_filename} เรียบร้อยแล้ว")
-
 # ==========================================
-# 6. สร้างกราฟเพื่อวิเคราะห์ผล (Visualization)
+# 6. กราฟ Visualization แบบจัดเต็ม
 # ==========================================
-print("\nกำลังสร้างกราฟผลลัพธ์...")
 
-# ---------------------------------------------------------
-# กราฟที่ 1: Bar Chart (เปรียบเทียบสัดส่วนเพศในแต่ละ Cluster)
-# ---------------------------------------------------------
-gender_cols = ['Gender_ชาย', 'Gender_หญิง', 'Gender_LGBTQ+']
-available_gender = [col for col in gender_cols if col in df.columns]
+# 📊 กราฟ 2: Silhouette Plot รายตัวอย่าง
+sil_vals = silhouette_samples(X_model, df['Cluster_ID'])
+fig, ax = plt.subplots(figsize=(10, 6))
+y_lower = 10
+colors = plt.cm.tab10(np.linspace(0, 1, optimal_k))
+for i in range(1, optimal_k + 1):
+    vals = np.sort(sil_vals[df['Cluster_ID'] == i])
+    y_upper = y_lower + len(vals)
+    ax.fill_betweenx(np.arange(y_lower, y_upper), 0, vals, facecolor=colors[i-1], alpha=0.85)
+    ax.text(-0.05, y_lower + len(vals)/2, f'C{i} (n={len(vals)})', fontsize=10)
+    y_lower = y_upper + 10
+ax.axvline(x=final_sil, color='red', linestyle='--', label=f'avg={final_sil:.3f}')
+ax.set_title(f'Silhouette Plot แยกรายคน (K={optimal_k})', fontsize=13, fontweight='bold')
+ax.legend()
+plt.tight_layout()
+plt.show()
 
-if available_gender:
-    cluster_gender = df.groupby('Cluster_ID')[available_gender].mean()
-    # ใช้ ax เพื่อวาดกราฟใน figure ที่เรากำหนดขนาดไว้
-    fig, ax = plt.subplots(figsize=(10, 6))
-    cluster_gender.plot(kind='bar', colormap='Set2', ax=ax)
-    plt.title('สัดส่วนเพศในแต่ละกลุ่ม (Cluster)', fontsize=14)
-    plt.xlabel('Cluster ID', fontsize=12)
-    plt.ylabel('สัดส่วน (Proportion)', fontsize=12)
-    plt.xticks(rotation=0)
-    plt.legend(title='เพศ', loc='upper left', bbox_to_anchor=(1, 1))
-    plt.tight_layout()
-    plt.show()
-
-# ---------------------------------------------------------
-# กราฟที่ 2: Scatter Plot (ลดมิติข้อมูลด้วย PCA)
-# ---------------------------------------------------------
-# เนื่องจากเรามีฟีเจอร์เยอะมาก เราจะใช้ PCA ยุบให้เหลือแค่แกน X, Y (2 มิติ) เพื่อให้พล็อตจุดได้
-pca = PCA(n_components=2)
-X_pca = pca.fit_transform(X_scaled) 
-df['PCA1'] = X_pca[:, 0]
-df['PCA2'] = X_pca[:, 1]
-
+# 📊 กราฟ 3: PCA Scatter Plot
+df['PCA1'] = X_model[:, 0]
+df['PCA2'] = X_model[:, 1]
 plt.figure(figsize=(10, 6))
-sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID', palette='tab10', s=100, alpha=0.7)
-plt.title('Scatter Plot แสดงการกระจายตัวของแต่ละกลุ่ม (PCA 2D)', fontsize=14)
-plt.xlabel('PCA Component 1', fontsize=12)
-plt.ylabel('PCA Component 2', fontsize=12)
-plt.legend(title='Cluster ID')
+sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID', palette='tab10', s=100, alpha=0.8)
+plt.title('Scatter Plot แยกกลุ่มลูกค้า (PCA)', fontsize=13, fontweight='bold')
+plt.legend(title='Cluster', bbox_to_anchor=(1.02, 1), loc='upper left')
 plt.grid(True, linestyle='--', alpha=0.5)
 plt.tight_layout()
 plt.show()
 
-# ---------------------------------------------------------
-# กราฟที่ 3: Radar Chart (ดูพฤติกรรมเด่นของแต่ละ Cluster)
-# ---------------------------------------------------------
-# เลือกคอลัมน์พฤติกรรมมาสัก 5-6 ตัว เพื่อไม่ให้กราฟรกเกินไป (สมมติเลือกปัจจัยการซื้อ Purchase_Factor)
-radar_cols = [col for col in behavioral_cols if 'Purchase_Factor_' in col][:6] 
+# 📊 กราฟ 4: Cluster Heatmap (เช็คพฤติกรรมแต่ละกลุ่ม)
+cluster_means = df.groupby('Cluster_ID')[behavioral_cols].mean()
+short_names = {c: c.replace('Purchase_Factor_', 'PF_').replace('Strength_', 'St_').replace('Calvora_Natural_Ingredient_', 'NI_').replace('Time_', 'T_') for c in behavioral_cols}
+fig, ax = plt.subplots(figsize=(16, 8))
+sns.heatmap(cluster_means.rename(columns=short_names), annot=True, fmt='.2f', cmap='RdYlGn', center=0, linewidths=0.3, ax=ax)
+ax.set_title('Heatmap: เจาะลึกพฤติกรรมแต่ละกลุ่ม (สีเขียว=เด่น, สีแดง=ไม่สนใจ)', fontsize=13, fontweight='bold')
+plt.xticks(rotation=45, ha='right', fontsize=9)
+plt.tight_layout()
+plt.show()
 
-if radar_cols:
-    cluster_radar = df.groupby('Cluster_ID')[radar_cols].mean().reset_index()
-    
-    # จัดชื่อตัวแปรให้สั้นลงสำหรับแสดงบนกราฟ
-    categories = [col.replace('Purchase_Factor_', '') for col in radar_cols]
-    N = len(categories)
-    
-    angles = [n / float(N) * 2 * pi for n in range(N)]
-    angles += angles[:1]
-    
-    plt.figure(figsize=(8, 8))
-    ax = plt.subplot(111, polar=True)
-    ax.set_theta_offset(pi / 2)
-    ax.set_theta_direction(-1)
-    plt.xticks(angles[:-1], categories, fontsize=10)
-    
-    # วาดเส้นของแต่ละ Cluster
-    for i in range(len(cluster_radar)):
-        values = cluster_radar.loc[i, radar_cols].values.flatten().tolist()
-        values += values[:1]
-        cluster_id = cluster_radar.loc[i, 'Cluster_ID']
-        
-        ax.plot(angles, values, linewidth=2, linestyle='solid', label=f'Cluster {cluster_id}')
-        ax.fill(angles, values, alpha=0.1)
-        
-    plt.title('Radar Chart: ปัจจัยการซื้อเฉลี่ยของแต่ละ Cluster', fontsize=14, y=1.1)
-    plt.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
-    plt.tight_layout()
-    plt.show()
+# 📊 กราฟ 5: Radar Chart (ปัจจัยการซื้อ)
+radar_cols = [c for c in behavioral_cols if 'Purchase_Factor_' in c]
+cluster_radar = df.groupby('Cluster_ID')[radar_cols].mean().reset_index()
+categories = [c.replace('Purchase_Factor_', '') for c in radar_cols]
+N = len(categories)
+angles = [n / float(N) * 2 * pi for n in range(N)] + [0]
+
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, polar=True)
+ax.set_theta_offset(pi / 2)
+ax.set_theta_direction(-1)
+plt.xticks(angles[:-1], categories, fontsize=10)
+
+for i in range(len(cluster_radar)):
+    values = cluster_radar.loc[i, radar_cols].values.flatten().tolist() + [cluster_radar.loc[i, radar_cols].values[0]]
+    cid = cluster_radar.loc[i, 'Cluster_ID']
+    ax.plot(angles, values, linewidth=2, label=f'Cluster {cid}')
+    ax.fill(angles, values, alpha=0.1)
+
+plt.title('Radar Chart: ปัจจัยการซื้อหลัก', fontsize=14, y=1.1, fontweight='bold')
+plt.legend(loc='center left', bbox_to_anchor=(1.1, 0.5))
+plt.tight_layout(rect=[0, 0, 0.85, 1])
+plt.show()
+
+# ==========================================
+# 7. โมเดลเปรียบเทียบอื่นๆ (Model Comparison)
+# ==========================================
+from sklearn.cluster import AgglomerativeClustering, SpectralClustering
+from sklearn.mixture import GaussianMixture
+
+agglo_model = AgglomerativeClustering(n_clusters=optimal_k, metric='euclidean', linkage='ward')
+df['Cluster_ID_Agglo'] = agglo_model.fit_predict(X_model) + 1
+sil_agglo = silhouette_score(X_model, df['Cluster_ID_Agglo'])
+
+gmm_model = GaussianMixture(n_components=optimal_k, random_state=42)
+df['Cluster_ID_GMM'] = gmm_model.fit_predict(X_model) + 1
+sil_gmm = silhouette_score(X_model, df['Cluster_ID_GMM'])
+
+spectral_model = SpectralClustering(n_clusters=optimal_k, random_state=42, assign_labels='kmeans', affinity='nearest_neighbors')
+df['Cluster_ID_Spectral'] = spectral_model.fit_predict(X_model) + 1
+sil_spectral = silhouette_score(X_model, df['Cluster_ID_Spectral'])
+
+# 📊 กราฟ 6: เปรียบเทียบ 4 โมเดล
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+
+sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID', palette='Set1', s=100, alpha=0.7, ax=axes[0, 0])
+axes[0, 0].set_title(f'1. K-Means (Sil: {final_sil:.4f})', fontweight='bold')
+
+sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID_Agglo', palette='Set1', s=100, alpha=0.7, ax=axes[0, 1])
+axes[0, 1].set_title(f'2. Agglomerative (Sil: {sil_agglo:.4f})', fontweight='bold')
+
+sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID_GMM', palette='Set1', s=100, alpha=0.7, ax=axes[1, 0])
+axes[1, 0].set_title(f'3. Gaussian Mixture (Sil: {sil_gmm:.4f})', fontweight='bold')
+
+sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID_Spectral', palette='Set1', s=100, alpha=0.7, ax=axes[1, 1])
+axes[1, 1].set_title(f'4. Spectral (Sil: {sil_spectral:.4f})', fontweight='bold')
+
+plt.suptitle('เปรียบเทียบการแบ่งกลุ่มของทั้ง 4 โมเดล', fontsize=18, fontweight='bold')
+plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.show()
+
+# ==========================================
+# 8. บันทึกไฟล์
+# ==========================================
+df.to_csv(f"BU_Data_{optimal_k}_Segments_Final_Complete.csv", index=False)
+print("\n✅ รันเสร็จสมบูรณ์ กราฟครบ และบันทึกไฟล์เรียบร้อย!")
