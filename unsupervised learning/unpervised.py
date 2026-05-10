@@ -9,8 +9,10 @@ from sklearn.metrics import silhouette_score, silhouette_samples
 from math import pi
 import warnings
 
-warnings.filterwarnings('ignore')
-plt.rcParams['font.family'] = 'Tahoma'
+warnings.filterwarnings('ignore') # ปิดแจ้งเตือนจุกจิก
+
+# --- ตั้งค่าฟอนต์ภาษาไทย ---
+plt.rcParams['font.family'] = 'Tahoma' # หรือ 'Arial Unicode MS' สำหรับ Mac
 
 # ==========================================
 # 1. โหลดข้อมูล
@@ -22,193 +24,160 @@ print(f"ข้อมูลตั้งต้น: {len(df_raw)} คน")
 # 2. Feature Selection
 # ==========================================
 behavioral_cols = [
-    col for col in df_raw.columns
-    if ('Purchase_Factor_' in col
-        or 'Strength_' in col
-        or 'Calvora_Natural_Ingredient_' in col
-        or ('Time_' in col and col != 'Snack_Time_Category'))
+    col for col in df.columns 
+    if 'Purchase_Factor_' in col 
+    or 'Strength_' in col 
+    or 'Time_' in col 
+    or 'Calvora_Natural_Ingredient_' in col
 ]
-print(f"Feature ที่ใช้: {len(behavioral_cols)} คอลัมน์")
 
-X_raw = pd.get_dummies(df_raw[behavioral_cols].copy()).fillna(0)
-X_scaled_all = StandardScaler().fit_transform(X_raw)
+print(f"ดึงคอลัมน์พฤติกรรมมาทั้งหมด {len(behavioral_cols)} คอลัมน์")
 
-# ==========================================
-# 3. ลบ Outlier (index 73 — กลุ่ม C3 ขนาด 1 คน จาก K=4 รอบแรก)
-# ==========================================
-# หา outlier ด้วย K=4 ก่อน แล้วตัดกลุ่มที่มีสมาชิกคนเดียวออก
-km_detect = KMeans(n_clusters=4, random_state=42, n_init=20)
-labels_detect = km_detect.fit_predict(X_scaled_all) + 1
-cluster_sizes = pd.Series(labels_detect).value_counts()
-outlier_cluster_id = cluster_sizes.idxmin()
+X = df[behavioral_cols].copy()
 
-if cluster_sizes[outlier_cluster_id] == 1:
-    outlier_mask = labels_detect == outlier_cluster_id
-    outlier_indices = np.where(outlier_mask)[0]
-    df = df_raw.drop(index=outlier_indices).reset_index(drop=True)
-    X_clean = np.delete(X_scaled_all, outlier_indices, axis=0)
-    print(f"\n✅ ลบ outlier {len(outlier_indices)} คน (row {outlier_indices})")
-    print(f"ข้อมูลหลังลบ: {len(df)} คน")
-else:
-    df = df_raw.copy()
-    X_clean = X_scaled_all
-    print("\nไม่พบ outlier ที่ชัดเจน")
+# ---------------------------------------------------------
+# 🌟 จุดที่แก้ไข: จัดการข้อมูลที่เป็นตัวหนังสือ (Categorical Data)
+# ---------------------------------------------------------
+# ใช้ get_dummies แปลงคอลัมน์ที่เป็นข้อความ (เช่น 'Watching_Media') ให้กลายเป็นเลข 0, 1 อัตโนมัติ
+X_encoded = pd.get_dummies(X)
+
+# เติมค่าว่างด้วย 0 (ต้องทำหลังแปลงข้อความเสร็จแล้ว)
+X_encoded.fillna(0, inplace=True)
+
+print(f"หลังจากแปลงข้อความเป็นตัวเลข ได้คอลัมน์รวมที่จะใช้สอน AI ทั้งหมด {X_encoded.shape[1]} คอลัมน์")
+
+# สเกลข้อมูลให้เป็นมาตรฐาน (Standardization)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_encoded)
 
 # ==========================================
-# 4. เลือก K ด้วย Elbow + Silhouette
+# 3. สร้างกราฟ Elbow Method หาจำนวนกลุ่ม (K) ที่ดีที่สุด
 # ==========================================
-print("\nกำลังหา optimal K...")
-inertia, sil_scores = [], []
-K_range = range(2, 11)
+print("\nกำลังสร้างกราฟ Elbow Method...")
+inertia = []
+K_range = range(1, 11) 
 
 for k in K_range:
-    km = KMeans(n_clusters=k, random_state=42, n_init=20)
-    labels = km.fit_predict(X_clean)
-    inertia.append(km.inertia_)
-    sil_scores.append(silhouette_score(X_clean, labels))
+    kmeans_temp = KMeans(n_clusters=k, random_state=42)
+    kmeans_temp.fit(X_scaled)
+    inertia.append(kmeans_temp.inertia_)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-ax1.plot(K_range, inertia, marker='o', color='#1f77b4', linewidth=2, markersize=8)
-ax1.set_title('Elbow Method', fontsize=14, fontweight='bold')
-ax1.set_xlabel('จำนวนกลุ่ม (K)', fontsize=12)
-ax1.set_ylabel('Inertia', fontsize=12)
-ax1.set_xticks(list(K_range))
-ax1.grid(True, linestyle='--', alpha=0.5)
-
-best_k = list(K_range)[sil_scores.index(max(sil_scores))]
-ax2.plot(K_range, sil_scores, marker='s', color='#e67e22', linewidth=2, markersize=8)
-ax2.axvline(x=3, color='green', linestyle='--', alpha=0.8, label='K=3 (chosen)')
-ax2.axvline(x=best_k, color='red', linestyle='--', alpha=0.6, label=f'Best silhouette K={best_k}')
-ax2.set_title('Silhouette Score (สูง = ดี)', fontsize=14, fontweight='bold')
-ax2.set_xlabel('จำนวนกลุ่ม (K)', fontsize=12)
-ax2.set_ylabel('Silhouette Score', fontsize=12)
-ax2.set_xticks(list(K_range))
-ax2.legend()
-ax2.grid(True, linestyle='--', alpha=0.5)
-
-plt.suptitle('เลือก K ที่ดีที่สุดด้วย Elbow + Silhouette Score\n(หลังลบ Outlier)', fontsize=14, fontweight='bold')
+plt.figure(figsize=(9, 5))
+plt.plot(K_range, inertia, marker='o', linestyle='-', color='#1f77b4', linewidth=2, markersize=8)
+plt.title('Elbow Method: ค้นหาจำนวนกลุ่มลูกค้าที่เหมาะสมที่สุด (Optimal K)', fontsize=16, fontweight='bold')
+plt.xlabel('จำนวนกลุ่ม (Number of Clusters - K)', fontsize=12)
+plt.ylabel('ค่า Inertia (Sum of Squared Distances)', fontsize=12)
+plt.xticks(K_range)
+plt.grid(True, linestyle='--', alpha=0.6)
 plt.tight_layout()
-plt.show()
-
-print(f"\nSilhouette Scores หลังลบ outlier:")
-for k, s in zip(K_range, sil_scores):
-    note = " ← best silhouette" if k == best_k else (" ← chosen (business)" if k == 3 else "")
-    print(f"  K={k}: {s:.4f}{note}")
+plt.show() # <--- ดูจุดหักศอกที่กราฟนี้
 
 # ==========================================
-# 5. รัน KMeans ด้วย K=3
+# 4. เลือกรันโมเดลด้วย K ที่เหมาะสม 
 # ==========================================
-optimal_k = 3
-print(f"\n💡 รัน K-Means จริง ด้วย K={optimal_k}")
+# 💡 หากดูกราฟ Elbow แล้วพบว่าหักศอกที่ 4 สามารถแก้เลข 3 เป็น 4 ได้เลยครับ
+optimal_k = 3 
 
-kmeans_final = KMeans(n_clusters=optimal_k, random_state=42, n_init=20)
-df['Cluster_ID'] = kmeans_final.fit_predict(X_clean) + 1
+print(f"\n💡 รัน K-Means จริง ด้วยจำนวนกลุ่ม K = {optimal_k}")
+kmeans_final = KMeans(n_clusters=optimal_k, random_state=42)
+df['Cluster_ID'] = kmeans_final.fit_predict(X_scaled) + 1 
 
-final_sil = silhouette_score(X_clean, df['Cluster_ID'])
-print(f"✅ Silhouette Score (K={optimal_k}): {final_sil:.4f}")
-print("\nจำนวนคนในแต่ละกลุ่ม:")
+# ==========================================
+# 5. การทำ Profiling ร่วมกับข้อมูลประชากรศาสตร์ 
+# ==========================================
+print("\n=== จำนวนคนในแต่ละกลุ่ม ===")
 print(df['Cluster_ID'].value_counts().sort_index())
 
-# ==========================================
-# 6. Demographics Profiling
-# ==========================================
-print("\n=== Demographics ===")
+print("\n=== ข้อมูลประชากรศาสตร์ (Demographics) ของแต่ละกลุ่ม ===")
 demo_cols = ['Age', 'Gender_ชาย', 'Gender_หญิง', 'Gender_LGBTQ+']
-avail_demo = [c for c in demo_cols if c in df.columns]
-if avail_demo:
-    print(df.groupby('Cluster_ID')[avail_demo].mean().round(2))
+available_demo_cols = [col for col in demo_cols if col in df.columns]
+
+if available_demo_cols:
+    demographic_profiling = df.groupby('Cluster_ID')[available_demo_cols].mean().round(2)
+    print(demographic_profiling)
+else:
+    print("ไม่พบคอลัมน์ประชากรศาสตร์ใน Dataset นี้")
+
+# บันทึกผล
+output_filename = f"BU_Data_{optimal_k}_Segments_Unsupervised.csv"
+df.to_csv(output_filename, index=False)
+print(f"\n✅ บันทึกไฟล์ {output_filename} เรียบร้อยแล้ว")
 
 # ==========================================
-# 7. Visualization
+# 6. สร้างกราฟเพื่อวิเคราะห์ผล (Visualization)
 # ==========================================
+print("\nกำลังสร้างกราฟผลลัพธ์...")
 
-# --- กราฟ 1: Silhouette Plot รายตัวอย่าง ---
-sil_vals = silhouette_samples(X_clean, df['Cluster_ID'])
-fig, ax = plt.subplots(figsize=(10, 5))
-y_lower = 10
-colors = plt.cm.tab10(np.linspace(0, 1, optimal_k))
+# ---------------------------------------------------------
+# กราฟที่ 1: Bar Chart (เปรียบเทียบสัดส่วนเพศในแต่ละ Cluster)
+# ---------------------------------------------------------
+gender_cols = ['Gender_ชาย', 'Gender_หญิง', 'Gender_LGBTQ+']
+available_gender = [col for col in gender_cols if col in df.columns]
 
-for i in range(1, optimal_k + 1):
-    vals = np.sort(sil_vals[df['Cluster_ID'] == i])
-    y_upper = y_lower + len(vals)
-    ax.fill_betweenx(np.arange(y_lower, y_upper), 0, vals,
-                     facecolor=colors[i-1], edgecolor='none', alpha=0.85)
-    ax.text(-0.05, y_lower + len(vals)/2, f'C{i} (n={len(vals)})', fontsize=10)
-    y_lower = y_upper + 10
+if available_gender:
+    cluster_gender = df.groupby('Cluster_ID')[available_gender].mean()
+    # ใช้ ax เพื่อวาดกราฟใน figure ที่เรากำหนดขนาดไว้
+    fig, ax = plt.subplots(figsize=(10, 6))
+    cluster_gender.plot(kind='bar', colormap='Set2', ax=ax)
+    plt.title('สัดส่วนเพศในแต่ละกลุ่ม (Cluster)', fontsize=14)
+    plt.xlabel('Cluster ID', fontsize=12)
+    plt.ylabel('สัดส่วน (Proportion)', fontsize=12)
+    plt.xticks(rotation=0)
+    plt.legend(title='เพศ', loc='upper left', bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+    plt.show()
 
-ax.axvline(x=final_sil, color='red', linestyle='--', linewidth=1.5, label=f'avg={final_sil:.3f}')
-ax.set_xlabel('Silhouette Coefficient', fontsize=12)
-ax.set_title(f'Silhouette Plot รายตัวอย่าง (K={optimal_k}, หลังลบ Outlier)\nคนที่ค่า < 0 = อยู่ผิดกลุ่ม', fontsize=13, fontweight='bold')
-ax.legend()
-ax.grid(True, axis='x', linestyle='--', alpha=0.5)
-plt.tight_layout()
-plt.show()
-
-# --- กราฟ 2: PCA Scatter Plot ---
+# ---------------------------------------------------------
+# กราฟที่ 2: Scatter Plot (ลดมิติข้อมูลด้วย PCA)
+# ---------------------------------------------------------
+# เนื่องจากเรามีฟีเจอร์เยอะมาก เราจะใช้ PCA ยุบให้เหลือแค่แกน X, Y (2 มิติ) เพื่อให้พล็อตจุดได้
 pca = PCA(n_components=2)
-X_pca = pca.fit_transform(X_clean)
+X_pca = pca.fit_transform(X_scaled) 
 df['PCA1'] = X_pca[:, 0]
 df['PCA2'] = X_pca[:, 1]
-explained = pca.explained_variance_ratio_ * 100
 
 plt.figure(figsize=(10, 6))
-sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID', palette='tab10', s=100, alpha=0.8)
-plt.title(f'PCA Scatter Plot (อธิบาย variance ได้ {explained[0]:.1f}% + {explained[1]:.1f}% = {sum(explained):.1f}%)\nหลังลบ Outlier', fontsize=13, fontweight='bold')
-plt.xlabel(f'PCA 1 ({explained[0]:.1f}%)', fontsize=11)
-plt.ylabel(f'PCA 2 ({explained[1]:.1f}%)', fontsize=11)
-plt.legend(title='Cluster')
+sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID', palette='tab10', s=100, alpha=0.7)
+plt.title('Scatter Plot แสดงการกระจายตัวของแต่ละกลุ่ม (PCA 2D)', fontsize=14)
+plt.xlabel('PCA Component 1', fontsize=12)
+plt.ylabel('PCA Component 2', fontsize=12)
+plt.legend(title='Cluster ID')
 plt.grid(True, linestyle='--', alpha=0.5)
 plt.tight_layout()
 plt.show()
 
-# --- กราฟ 3: Cluster Heatmap ---
-cluster_means = df.groupby('Cluster_ID')[behavioral_cols].mean()
-short_names = {c: c.replace('Purchase_Factor_', 'PF_')
-                   .replace('Strength_', 'St_')
-                   .replace('Calvora_Natural_Ingredient_', 'NI_')
-                   .replace('Time_', 'T_') for c in behavioral_cols}
+# ---------------------------------------------------------
+# กราฟที่ 3: Radar Chart (ดูพฤติกรรมเด่นของแต่ละ Cluster)
+# ---------------------------------------------------------
+# เลือกคอลัมน์พฤติกรรมมาสัก 5-6 ตัว เพื่อไม่ให้กราฟรกเกินไป (สมมติเลือกปัจจัยการซื้อ Purchase_Factor)
+radar_cols = [col for col in behavioral_cols if 'Purchase_Factor_' in col][:6] 
 
-fig, ax = plt.subplots(figsize=(16, 4))
-sns.heatmap(cluster_means.rename(columns=short_names),
-            annot=True, fmt='.2f', cmap='RdYlGn', center=0,
-            linewidths=0.3, ax=ax, cbar_kws={'label': 'ค่าเฉลี่ย'})
-ax.set_title('Heatmap: ค่าเฉลี่ยทุก Feature ต่อ Cluster (K=3, หลังลบ Outlier)\n(สีเขียว = สูง, สีแดง = ต่ำ)', fontsize=13, fontweight='bold')
-ax.set_ylabel('Cluster ID', fontsize=11)
-plt.xticks(rotation=45, ha='right', fontsize=8)
-plt.tight_layout()
-plt.show()
-
-# --- กราฟ 4: Radar Chart ---
-radar_cols = [c for c in behavioral_cols if 'Purchase_Factor_' in c]
 if radar_cols:
     cluster_radar = df.groupby('Cluster_ID')[radar_cols].mean().reset_index()
-    categories = [c.replace('Purchase_Factor_', '') for c in radar_cols]
+    
+    # จัดชื่อตัวแปรให้สั้นลงสำหรับแสดงบนกราฟ
+    categories = [col.replace('Purchase_Factor_', '') for col in radar_cols]
     N = len(categories)
-    angles = [n / float(N) * 2 * pi for n in range(N)] + [0]
-    angles_labels = angles[:-1]
-
+    
+    angles = [n / float(N) * 2 * pi for n in range(N)]
+    angles += angles[:1]
+    
     plt.figure(figsize=(8, 8))
     ax = plt.subplot(111, polar=True)
     ax.set_theta_offset(pi / 2)
     ax.set_theta_direction(-1)
-    plt.xticks(angles_labels, categories, fontsize=10)
-
+    plt.xticks(angles[:-1], categories, fontsize=10)
+    
+    # วาดเส้นของแต่ละ Cluster
     for i in range(len(cluster_radar)):
-        values = cluster_radar.loc[i, radar_cols].values.flatten().tolist() + \
-                 [cluster_radar.loc[i, radar_cols].values[0]]
-        cid = cluster_radar.loc[i, 'Cluster_ID']
-        ax.plot(angles, values, linewidth=2, label=f'Cluster {cid}')
+        values = cluster_radar.loc[i, radar_cols].values.flatten().tolist()
+        values += values[:1]
+        cluster_id = cluster_radar.loc[i, 'Cluster_ID']
+        
+        ax.plot(angles, values, linewidth=2, linestyle='solid', label=f'Cluster {cluster_id}')
         ax.fill(angles, values, alpha=0.1)
-
-    plt.title('Radar: ปัจจัยการซื้อแต่ละ Cluster (K=3)', fontsize=14, y=1.1, fontweight='bold')
+        
+    plt.title('Radar Chart: ปัจจัยการซื้อเฉลี่ยของแต่ละ Cluster', fontsize=14, y=1.1)
     plt.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
     plt.tight_layout()
     plt.show()
-
-# ==========================================
-# 8. บันทึกผล
-# ==========================================
-df.to_csv(f"BU_Data_{optimal_k}_Segments_Final.csv", index=False)
-print(f"\n✅ บันทึก BU_Data_{optimal_k}_Segments_Final.csv เรียบร้อย")
-print(f"✅ Silhouette Score สุดท้าย: {final_sil:.4f}")
-print(f"✅ n = {len(df)} คน (ลบ outlier 1 คนแล้ว)")
