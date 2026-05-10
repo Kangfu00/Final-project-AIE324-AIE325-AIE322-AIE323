@@ -1,36 +1,42 @@
 import pandas as pd
-import pickle
+import numpy as np
+import joblib
 
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import classification_report
-from sklearn.metrics import f1_score
-
+from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.preprocessing import StandardScaler
 
-from sklearn.model_selection import StratifiedKFold, cross_validate
+import warnings
+warnings.filterwarnings('ignore')
 
-# โหลดข้อมูล
-df = pd.read_csv("BU_Data_transformed.csv")
+# ==========================================
+# 1. โหลดข้อมูลที่มี Cluster_ID จาก unsupervised แล้ว
+# ==========================================
+df = pd.read_csv("BU_Data_3_Segments_Final_Complete.csv")
+print(f"โหลดข้อมูล: {len(df)} คน")
+print(f"Cluster distribution:\n{df['Cluster_ID'].value_counts().sort_index()}")
 
+# ==========================================
+# 2. สร้าง Target
+# ==========================================
 df["Sales_Opportunity"] = (
     (df["Try_New_Flavor"] == 1) |
     (df["Like_Stronger_Ebisen_Flavor"] == 1)
 ).astype(int)
+print(f"\nSales_Opportunity distribution:\n{df['Sales_Opportunity'].value_counts()}")
 
 # ==========================================
-# 💡 เพิ่มโค้ด Feature Engineering ตรงนี้
+# 3. Feature Engineering
 # ==========================================
-# 1. กลุ่มคนเน้นคุณภาพชีวิต (Quality Seeker)
 df["Quality_Seeker_Score"] = df["Purchase_Factor_Quality_Ingredients"] + df["Purchase_Factor_Healthy"]
+df["Brand_Trust_Score"]    = df["Believe_Ebisen_Shrimp"] + df["Calvora_Tagline_Reflection"]
 
-# 2. กลุ่มคนเชื่อมั่นในแบรนด์ (Brand Trust Score)
-df["Brand_Trust_Score"] = df["Believe_Ebisen_Shrimp"] + df["Calvora_Tagline_Reflection"]
 # ==========================================
-
-# เลือกเฉพาะ Feature ที่หน้าเว็บใช้จริง (เพิ่ม 2 ตัวใหม่เข้าไปด้านล่างสุด)
+# 4. Features (เพิ่ม Cluster_ID เป็น feature)
+# ==========================================
 features = [
     "Purchase_Factor_Quality_Ingredients",
     "Calvora_Tagline_Reflection",
@@ -43,94 +49,105 @@ features = [
     "Know_Ebisen",
     "Strength_มีคุณภาพดี (Good quality)",
     "Calvora_Association_Calvora_Association",
-    "Quality_Seeker_Score",  # <-- เพิ่มเข้ามา
-    "Brand_Trust_Score"      # <-- เพิ่มเข้ามา
+    "Cluster_ID",            # เพิ่มจาก unsupervised
+    "Quality_Seeker_Score",
+    "Brand_Trust_Score",
 ]
 
-target = "Sales_Opportunity"
-
-# กันกรณีบางคอลัมน์ไม่มี
 available_features = [f for f in features if f in df.columns]
+missing = [f for f in features if f not in df.columns]
+if missing:
+    print(f"⚠️  ไม่พบคอลัมน์: {missing}")
 
 X = df[available_features]
-y = df[target]
+y = df["Sales_Opportunity"]
 
-# Train / Test Split
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
-    random_state=42,
-    stratify=y
+# ==========================================
+# 5. Scale features
+# ==========================================
+sup_scaler = StandardScaler()
+X_scaled = pd.DataFrame(
+    sup_scaler.fit_transform(X),
+    columns=available_features
 )
 
-# สร้างโมเดลหลายแบบ
+# ==========================================
+# 6. Train/Test Split
+# ==========================================
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# ==========================================
+# 7. StratifiedKFold Cross-Validation (แก้ไขจาก train_test เพียว)
+# ==========================================
+# n=123 น้อย → ใช้ 5-fold เพื่อให้ประเมินผลน่าเชื่อถือขึ้น
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
 models = {
     "Random Forest": RandomForestClassifier(
-        n_estimators=200,
-        random_state=42,
-        class_weight="balanced"
+        n_estimators=200, random_state=42, class_weight="balanced"
     ),
-
     "Logistic Regression": LogisticRegression(
-        max_iter=1000,
-        class_weight="balanced",
+        max_iter=1000, class_weight="balanced"
     ),
-
     "Decision Tree": DecisionTreeClassifier(
-        random_state=42,
-        max_depth=4,           # ป้องกัน overfit
-        min_samples_leaf=5,    # ต้องการตัวอย่างอย่างน้อย 5 ในแต่ละ leaf
-        class_weight="balanced"
-)
+        random_state=42, max_depth=4,
+        min_samples_leaf=5, class_weight="balanced"
+    ),
 }
 
-best_model = None
-best_score = 0
-best_name = ""
+best_model_obj  = None
+best_cv_f1      = 0
+best_name       = ""
 
-print("\n========== MODEL BENCHMARK ==========\n")
+print("\n========== MODEL BENCHMARK (5-Fold CV) ==========\n")
 
 for name, model in models.items():
+    cv_results = cross_validate(
+        model, X_scaled, y, cv=cv,
+        scoring=['accuracy', 'f1_macro'],
+        return_train_score=False
+    )
+    mean_acc = cv_results['test_accuracy'].mean()
+    mean_f1  = cv_results['test_f1_macro'].mean()
+    std_f1   = cv_results['test_f1_macro'].std()
 
+    # fit บน train set ด้วยเพื่อดู classification report
     model.fit(X_train, y_train)
-
     y_pred = model.predict(X_test)
 
-    accuracy = accuracy_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred, average='macro')
-
     print(f"{name}")
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"F1-Score: {f1:.4f}")
-
-    print(classification_report(y_test, y_pred))
+    print(f"  CV Accuracy : {mean_acc:.4f}")
+    print(f"  CV F1-Macro : {mean_f1:.4f} ± {std_f1:.4f}")
+    print(classification_report(y_test, y_pred, zero_division=0))
     print("-" * 50)
 
-    if f1 > best_score:
-        best_score = f1
-        best_model = model
-        best_name = name
+    if mean_f1 > best_cv_f1:
+        best_cv_f1     = mean_f1
+        best_model_obj = model
+        best_name      = name
 
-# Save Best Model
-with open("supervised_model.pkl", "wb") as file:
-    pickle.dump(best_model, file)
+# fit best model บน full data ก่อน save
+best_model_obj.fit(X_scaled, y)
 
-print(f"\nBest Model: {best_name}")
-print("บันทึกโมเดลเรียบร้อย: supervised_model.pkl")
-
-# Feature Importance
+# ==========================================
+# 8. Feature Importance (ถ้าเป็น Random Forest)
+# ==========================================
 if best_name == "Random Forest":
-
     importance = pd.DataFrame({
-        "Feature": X.columns,
-        "Importance": best_model.feature_importances_
-    })
+        "Feature":    available_features,
+        "Importance": best_model_obj.feature_importances_
+    }).sort_values("Importance", ascending=False)
+    print(f"\nTop Features ({best_name}):")
+    print(importance.to_string(index=False))
 
-    importance = importance.sort_values(
-        by="Importance",
-        ascending=False
-    )
+# ==========================================
+# 9. บันทึก Pipeline ทั้งชุด (สำหรับ Streamlit)
+# ==========================================
+joblib.dump(best_model_obj,     'supervised_model.pkl')
+joblib.dump(sup_scaler,         'supervised_scaler.pkl')
+joblib.dump(available_features, 'supervised_features.pkl')
 
-    print("\nTop Important Features")
-    print(importance)
+print(f"\n✅ Best Model: {best_name}  (CV F1-Macro: {best_cv_f1:.4f})")
+print("✅ บันทึก: supervised_model.pkl, supervised_scaler.pkl, supervised_features.pkl")
