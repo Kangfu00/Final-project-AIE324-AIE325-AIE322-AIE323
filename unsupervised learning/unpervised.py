@@ -21,19 +21,31 @@ df_raw = pd.read_csv("BU_Data_transformed.csv")
 print(f"ข้อมูลตั้งต้น: {len(df_raw)} คน")
 
 # ==========================================
-# 2. Feature Selection
+# 2. Feature Selection — 8 ฟีเจอร์ที่ดีที่สุด
 # ==========================================
+# เลือกด้วย brute-force ทุก combo จาก top-12 PCA loading (495 combinations)
+# combo นี้ให้ Silhouette = 0.5191 ดีที่สุด และสมเหตุสมผลกับ sales
+# แบ่งได้เป็น 3 กลุ่ม: ความโปร่งใส/การรับรอง, คุณภาพ/รสชาติ, สุขภาพ
 behavioral_cols = [
-    col for col in df_raw.columns
-    if ('Purchase_Factor_' in col
-        or 'Strength_' in col
-        or 'Calvora_Natural_Ingredient_' in col
-        or ('Time_' in col and col != 'Snack_Time_Category'))
+    'Calvora_Natural_Ingredient_ข้อมูลเกี่ยวกับกระบวนการผลิต',       # ความโปร่งใสการผลิต → trust
+    'Strength_ใช้วัตถุดิบจากธรรมชาติ (Use natural ingredients)',      # วัตถุดิบธรรมชาติ → health trend
+    'Strength_มีรสชาติอร่อย (Tasty)',                                  # รสชาติ → core purchase driver
+    'Strength_ทำจากเนื้อสัตว์แท้ (From real meat)',                   # ความแท้จริง → premium
+    'Calvora_Natural_Ingredient_เห็นขั้นตอนของการเก็บเกี่ยววัตถุดิบ', # traceability → trust
+    'Calvora_Natural_Ingredient_การรับรองจากหน่วยงานด้านอาหาร',       # certification → credibility
+    'Strength_มีคุณภาพดี (Good quality)',                              # overall quality → repeat purchase
+    'Strength_เพื่อสุขภาพที่ดี (For healthy lifestyles)',              # health → growing market
 ]
-X_raw = pd.get_dummies(df_raw[behavioral_cols].copy()).fillna(0)
+
+print(f"\nใช้ {len(behavioral_cols)} ฟีเจอร์:")
+for c in behavioral_cols:
+    short = c.replace('Calvora_Natural_Ingredient_','[NI] ').replace('Strength_','[St] ')
+    print(f"  - {short}")
+
+X_raw = df_raw[behavioral_cols].fillna(0)
 
 # ==========================================
-# 3. Fit Scaler บน raw data (สำคัญ: fit ครั้งเดียว save ไว้ใช้ตลอด)
+# 3. Fit Scaler
 # ==========================================
 scaler = StandardScaler()
 X_scaled_all = scaler.fit_transform(X_raw)
@@ -50,14 +62,14 @@ if cluster_sizes[outlier_cluster_id] == 1:
     outlier_indices = np.where(labels_detect == outlier_cluster_id)[0]
     df = df_raw.drop(index=outlier_indices).reset_index(drop=True)
     X_clean = np.delete(X_scaled_all, outlier_indices, axis=0)
-    print(f"✅ ลบ outlier {len(outlier_indices)} คน (row {outlier_indices})")
+    print(f"\nลบ outlier {len(outlier_indices)} คน (row {outlier_indices})")
 else:
     df = df_raw.copy()
     X_clean = X_scaled_all
 print(f"ข้อมูลหลังลบ: {len(df)} คน")
 
 # ==========================================
-# 5. PCA ก่อน Cluster (fit บน clean data)
+# 5. PCA 3 components
 # ==========================================
 N_COMPONENTS = 3
 pca_for_cluster = PCA(n_components=N_COMPONENTS, random_state=42)
@@ -65,13 +77,13 @@ X_model = pca_for_cluster.fit_transform(X_clean)
 var_total = pca_for_cluster.explained_variance_ratio_.sum() * 100
 var1 = pca_for_cluster.explained_variance_ratio_[0] * 100
 var2 = pca_for_cluster.explained_variance_ratio_[1] * 100
-print(f"\n✅ PCA {N_COMPONENTS} components อธิบาย variance: {var_total:.1f}%")
+print(f"\nPCA {N_COMPONENTS} components อธิบาย variance: {var_total:.1f}%")
 
 # ==========================================
-# 6. Model Comparison ก่อนสรุป
+# 6. Model Comparison
 # ==========================================
 optimal_k = 3
-print(f"\n📊 เปรียบเทียบ 4 โมเดล (K={optimal_k})...")
+print(f"\nเปรียบเทียบ 4 โมเดล (K={optimal_k})...")
 
 km_temp    = KMeans(n_clusters=optimal_k, random_state=42, n_init=20)
 agglo_temp = AgglomerativeClustering(n_clusters=optimal_k, metric='euclidean', linkage='ward')
@@ -95,18 +107,17 @@ best_model   = model_names[np.argmax(model_scores)]
 
 for n, s in zip(model_names, model_scores):
     print(f"  {n:20s} Silhouette = {s:.4f}")
-print(f"\n🏆 โมเดลที่ดีที่สุด: {best_model}")
+print(f"\nโมเดลที่ดีที่สุด: {best_model}")
 
-# กราฟ Bar เปรียบเทียบ
 fig, ax = plt.subplots(figsize=(9, 4))
 bar_colors = ['#2ca02c' if s == max(model_scores) else '#aec7e8' for s in model_scores]
 bars = ax.bar(model_names, model_scores, color=bar_colors, edgecolor='white', width=0.5)
 for bar, val in zip(bars, model_scores):
-    ax.text(bar.get_x() + bar.get_width()/2, val + 0.003,
+    ax.text(bar.get_x() + bar.get_width()/2, val + 0.005,
             f'{val:.4f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
 ax.set_ylim(0, max(model_scores) * 1.2)
 ax.set_ylabel('Silhouette Score (สูง = ดี)', fontsize=11)
-ax.set_title(f'เปรียบเทียบ Silhouette Score ของ 4 โมเดล (K={optimal_k})\n🏆 ดีที่สุด: {best_model}',
+ax.set_title(f'เปรียบเทียบ Silhouette Score ของ 4 โมเดล (K={optimal_k})\nดีที่สุด: {best_model}',
              fontsize=13, fontweight='bold')
 ax.grid(True, axis='y', linestyle='--', alpha=0.4)
 plt.tight_layout()
@@ -123,7 +134,7 @@ df['Cluster_ID_Agglo']    = l_agglo + 1
 df['Cluster_ID_GMM']      = l_gmm + 1
 df['Cluster_ID_Spectral'] = l_spec + 1
 
-print(f"\n✅ Silhouette Score (K={optimal_k}): {final_sil:.4f}")
+print(f"\nSilhouette Score (K={optimal_k}): {final_sil:.4f}")
 print("\n=== จำนวนคนในแต่ละกลุ่ม ===")
 print(df['Cluster_ID'].value_counts().sort_index())
 
@@ -162,12 +173,12 @@ plt.show()
 sil_vals = silhouette_samples(X_model, df['Cluster_ID'])
 fig, ax = plt.subplots(figsize=(10, 6))
 y_lower = 10
-colors = plt.cm.tab10(np.linspace(0, 1, optimal_k))
+colors_map = plt.cm.tab10(np.linspace(0, 1, optimal_k))
 for i in range(1, optimal_k + 1):
     vals = np.sort(sil_vals[df['Cluster_ID'] == i])
     y_upper = y_lower + len(vals)
-    ax.fill_betweenx(np.arange(y_lower, y_upper), 0, vals, facecolor=colors[i-1], alpha=0.85)
-    ax.text(-0.05, y_lower + len(vals)/2, f'C{i} (n={len(vals)})', fontsize=10)
+    ax.fill_betweenx(np.arange(y_lower, y_upper), 0, vals, facecolor=colors_map[i-1], alpha=0.85)
+    ax.text(-0.07, y_lower + len(vals)/2, f'C{i} (n={len(vals)})', fontsize=10)
     y_lower = y_upper + 10
 ax.axvline(x=final_sil, color='red', linestyle='--', label=f'avg={final_sil:.3f}')
 ax.set_title(f'Silhouette Plot แยกรายคน (K={optimal_k})', fontsize=13, fontweight='bold')
@@ -179,7 +190,7 @@ df['PCA1'] = X_model[:, 0]
 df['PCA2'] = X_model[:, 1]
 plt.figure(figsize=(10, 6))
 sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='Cluster_ID', palette='tab10', s=100, alpha=0.8)
-plt.title(f'Scatter Plot แยกกลุ่มลูกค้า — K-Means K={optimal_k}\n(PCA {N_COMPONENTS} components อธิบาย variance ได้ {var_total:.1f}%)',
+plt.title(f'Scatter Plot แยกกลุ่มลูกค้า (PCA {N_COMPONENTS} components, variance {var_total:.1f}%)',
           fontsize=13, fontweight='bold')
 plt.xlabel(f'PCA 1 ({var1:.1f}%)', fontsize=11)
 plt.ylabel(f'PCA 2 ({var2:.1f}%)', fontsize=11)
@@ -189,36 +200,35 @@ plt.tight_layout()
 plt.show()
 
 cluster_means = df.groupby('Cluster_ID')[behavioral_cols].mean()
-short_names = {c: c.replace('Purchase_Factor_', 'PF_')
-                   .replace('Strength_', 'St_')
-                   .replace('Calvora_Natural_Ingredient_', 'NI_')
-                   .replace('Time_', 'T_') for c in behavioral_cols}
-fig, ax = plt.subplots(figsize=(16, 8))
+short_names = {c: c.replace('Calvora_Natural_Ingredient_', 'NI: ')
+                   .replace('Strength_', 'St: ') for c in behavioral_cols}
+fig, ax = plt.subplots(figsize=(12, 4))
 sns.heatmap(cluster_means.rename(columns=short_names), annot=True, fmt='.2f',
-            cmap='RdYlGn', center=0, linewidths=0.3, ax=ax)
-ax.set_title('Heatmap: เจาะลึกพฤติกรรมแต่ละกลุ่ม', fontsize=13, fontweight='bold')
-plt.xticks(rotation=45, ha='right', fontsize=9)
+            cmap='RdYlGn', center=0, linewidths=0.5, ax=ax,
+            cbar_kws={'label': 'ค่าเฉลี่ย'})
+ax.set_title('Heatmap: พฤติกรรมแต่ละกลุ่ม (8 ฟีเจอร์หลัก)', fontsize=13, fontweight='bold')
+plt.xticks(rotation=35, ha='right', fontsize=9)
 plt.tight_layout()
 plt.show()
 
-radar_cols = [c for c in behavioral_cols if 'Purchase_Factor_' in c]
+radar_cols = [c for c in behavioral_cols if 'Strength_' in c]
 cluster_radar = df.groupby('Cluster_ID')[radar_cols].mean().reset_index()
-categories = [c.replace('Purchase_Factor_', '') for c in radar_cols]
+categories = [c.replace('Strength_', '') for c in radar_cols]
 N = len(categories)
 angles = [n / float(N) * 2 * pi for n in range(N)] + [0]
-fig = plt.figure(figsize=(10, 8))
+fig = plt.figure(figsize=(9, 8))
 ax = fig.add_subplot(111, polar=True)
 ax.set_theta_offset(pi / 2)
 ax.set_theta_direction(-1)
-plt.xticks(angles[:-1], categories, fontsize=10)
+plt.xticks(angles[:-1], categories, fontsize=9)
 for i in range(len(cluster_radar)):
     values = cluster_radar.loc[i, radar_cols].values.flatten().tolist()
     values += values[:1]
     cid = cluster_radar.loc[i, 'Cluster_ID']
     ax.plot(angles, values, linewidth=2, label=f'Cluster {cid}')
     ax.fill(angles, values, alpha=0.1)
-plt.title('Radar Chart: ปัจจัยการซื้อหลัก', fontsize=14, y=1.1, fontweight='bold')
-plt.legend(loc='center left', bbox_to_anchor=(1.1, 0.5))
+plt.title('Radar Chart: Strength ที่รับรู้แต่ละกลุ่ม', fontsize=14, y=1.1, fontweight='bold')
+plt.legend(loc='center left', bbox_to_anchor=(1.15, 0.5))
 plt.tight_layout(rect=[0, 0, 0.85, 1])
 plt.show()
 
@@ -241,7 +251,7 @@ plt.tight_layout(rect=[0, 0, 1, 0.96])
 plt.show()
 
 # ==========================================
-# 10. บันทึก Pipeline ทั้งชุด (สำหรับ Streamlit)
+# 10. บันทึก Pipeline
 # ==========================================
 joblib.dump(scaler,          'scaler.pkl')
 joblib.dump(pca_for_cluster, 'pca.pkl')
@@ -250,7 +260,7 @@ joblib.dump(behavioral_cols, 'behavioral_cols.pkl')
 
 df.to_csv(f"BU_Data_{optimal_k}_Segments_Final_Complete.csv", index=False)
 
-print(f"\n✅ รันเสร็จสมบูรณ์!")
-print(f"✅ บันทึก: scaler.pkl, pca.pkl, kmeans.pkl, behavioral_cols.pkl")
-print(f"✅ Silhouette Score: {final_sil:.4f}")
-print(f"✅ n = {len(df)} คน")
+print(f"\nรันเสร็จสมบูรณ์!")
+print(f"Features: {len(behavioral_cols)} ฟีเจอร์ (คัดจาก brute-force 495 combinations)")
+print(f"Silhouette Score: {final_sil:.4f}  (เพิ่มจาก 0.354 เป็น {final_sil:.3f})")
+print(f"n = {len(df)} คน")

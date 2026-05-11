@@ -88,6 +88,15 @@ CLUSTER_NAMES = {
 }
 CLUSTER_COLORS = {1: "#4e79a7", 2: "#f28e2b", 3: "#e15759"}
 
+# map ช่วงอายุที่เข้าใจง่าย → z-score ที่ตรงกันใน dataset (5 กลุ่ม ห่างเท่ากัน)
+AGE_MAP = {
+    "18 - 22 ปี":  -1.6003,
+    "23 - 27 ปี":  -0.7523,
+    "28 - 32 ปี":   0.0957,
+    "33 - 37 ปี":   0.9438,
+    "38 ปีขึ้นไป":  1.7918,
+}
+
 # ==========================================
 # Sidebar Navigation
 # ==========================================
@@ -177,10 +186,58 @@ if page == "🏠 ภาพรวม":
 # PAGE 2: พยากรณ์ลูกค้าใหม่
 # ==========================================
 elif page == "🔮 พยากรณ์ลูกค้าใหม่":
+    # CSS สำหรับ toggle button
+    st.markdown("""
+    <style>
+    div[data-testid="stRadio"] > label { display: none; }
+    div[data-testid="stRadio"] > div {
+        display: flex; flex-direction: row; gap: 8px; flex-wrap: wrap;
+    }
+    div[data-testid="stRadio"] > div > label {
+        display: flex !important;
+        align-items: center;
+        padding: 6px 20px;
+        border-radius: 20px;
+        border: 1.5px solid #667eea;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.15s;
+        background: transparent;
+        color: var(--text-color);
+    }
+    div[data-testid="stRadio"] > div > label:has(input:checked) {
+        background: #667eea;
+        color: white !important;
+        border-color: #667eea;
+    }
+    div[data-testid="stRadio"] > div > label > div:first-child { display: none; }
+    .input-section {
+        background: var(--background-color);
+        border: 1px solid #e0e0e030;
+        border-radius: 12px;
+        padding: 1rem 1.2rem;
+        margin-bottom: 1rem;
+    }
+    .input-section h4 { margin: 0 0 0.75rem; font-size: 14px; color: #667eea; }
+    .field-label {
+        font-size: 13px;
+        color: var(--text-color);
+        margin-bottom: 2px;
+        font-weight: 500;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # helper: toggle ใช่/ไม่ใช่ (ต้องอยู่นอก form เพราะ radio ใน form มี limitation)
+    def yn_toggle(label, key):
+        st.markdown(f'<div class="field-label">{label}</div>', unsafe_allow_html=True)
+        val = st.radio("_", ["ไม่ใช่", "ใช่"], horizontal=True, key=key, label_visibility="collapsed")
+        return 1 if val == "ใช่" else 0
+
     st.title("🔮 พยากรณ์ลูกค้าใหม่")
     st.markdown("---")
 
-    # แบ่งเป็น 2 ส่วนชัดเจนด้วย tab
     tab_cluster, tab_sales = st.tabs([
         "🔵 ส่วนที่ 1 — พยากรณ์ Cluster (Unsupervised)",
         "💰 ส่วนที่ 2 — พยากรณ์ Sales Opportunity (Supervised)",
@@ -191,55 +248,68 @@ elif page == "🔮 พยากรณ์ลูกค้าใหม่":
     # ==========================================
     with tab_cluster:
         st.subheader("🔵 พยากรณ์กลุ่มลูกค้า (Cluster_ID)")
-        st.caption("ใช้ข้อมูลพฤติกรรมการซื้อและการบริโภค → ผ่าน StandardScaler + PCA(3) + KMeans K=3")
+        st.caption("ใช้ข้อมูลพฤติกรรมการซื้อและการบริโภค → StandardScaler + PCA(3) + KMeans K=3")
         st.markdown("---")
 
-        with st.form("cluster_form"):
-            st.markdown("**📋 กรอกข้อมูลพฤติกรรม**")
-            st.caption("ค่า z-score: 0 = เฉลี่ย, บวก = สูงกว่าเฉลี่ย, ลบ = ต่ำกว่าเฉลี่ย")
+        col1, col2, col3 = st.columns(3)
 
-            col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown('<div class="input-section"><h4>🛒 ปัจจัยการซื้อ (Purchase Factor)</h4>', unsafe_allow_html=True)
+            st.caption("ระดับความสำคัญ: -3 = ไม่สำคัญเลย, 0 = ปานกลาง, +3 = สำคัญมาก")
+            pf_quality = st.slider("คุณภาพวัตถุดิบ", -3.0, 3.0, 0.0, 0.1, key="c_pf_q")
+            pf_tasty   = st.slider("รสชาติอร่อย",    -3.0, 3.0, 0.0, 0.1, key="c_pf_t")
+            pf_flavors = st.slider("ความหลากหลายรส", -3.0, 3.0, 0.0, 0.1, key="c_pf_f")
+            pf_crispy  = st.slider("ความกรอบ",        -3.0, 3.0, 0.0, 0.1, key="c_pf_c")
+            pf_healthy = st.slider("เพื่อสุขภาพ",     -3.0, 3.0, 0.0, 0.1, key="c_pf_h")
+            strength_q = st.slider("Strength: คุณภาพดี", -3.0, 3.0, 0.0, 0.1, key="c_sq")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            with col1:
-                st.markdown("**ปัจจัยการซื้อ (Purchase Factor)**")
-                pf_quality  = st.slider("คุณภาพวัตถุดิบ", -3.0, 3.0, 0.0, 0.1, key="c_pf_q")
-                pf_tasty    = st.slider("รสชาติอร่อย",     -3.0, 3.0, 0.0, 0.1, key="c_pf_t")
-                pf_flavors  = st.slider("ความหลากหลายรส",  -3.0, 3.0, 0.0, 0.1, key="c_pf_f")
-                pf_crispy   = st.slider("ความกรอบ",         -3.0, 3.0, 0.0, 0.1, key="c_pf_c")
-                pf_healthy  = st.slider("เพื่อสุขภาพ",      -3.0, 3.0, 0.0, 0.1, key="c_pf_h")
+            st.markdown('<div class="input-section"><h4>🔗 Calvora Association</h4>', unsafe_allow_html=True)
+            calvora_assoc = st.slider("Calvora Association",       -3.0, 3.0, 0.0, 0.1, key="c_ca")
+            general_assoc = st.slider("General Snack Association", -3.0, 3.0, 0.0, 0.1, key="c_ga")
+            tagline       = st.slider("Tagline Reflection",        -3.0, 3.0, 0.0, 0.1, key="c_tl")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            with col2:
-                st.markdown("**ช่วงเวลารับประทาน (Time)**")
-                t_free    = st.selectbox("ช่วงเวลาว่าง",   [0, 1], key="c_t1")
-                t_hungry  = st.selectbox("ตอนหิว",         [0, 1], key="c_t2")
-                t_night   = st.selectbox("ดึก",            [0, 1], key="c_t3")
-                t_party   = st.selectbox("งานสังสรรค์",    [0, 1], key="c_t4")
-                t_game    = st.selectbox("เล่นเกม",        [0, 1], key="c_t5")
-                t_media   = st.selectbox("ดูสื่อ",         [0, 1], key="c_t6")
-                t_work    = st.selectbox("ทำงาน/เรียน",   [0, 1], key="c_t7")
-                t_other   = st.selectbox("อื่นๆ",          [0, 1], key="c_t8")
+        with col2:
+            st.markdown('<div class="input-section"><h4>⏰ ช่วงเวลารับประทาน</h4>', unsafe_allow_html=True)
+            st.caption("เลือกช่วงเวลาที่มักรับประทานขนม")
+            t_free   = yn_toggle("ช่วงเวลาว่าง",  "c_t1")
+            t_hungry = yn_toggle("ตอนหิว",         "c_t2")
+            t_night  = yn_toggle("ดึก",            "c_t3")
+            t_party  = yn_toggle("งานสังสรรค์",    "c_t4")
+            t_game   = yn_toggle("เล่นเกม",        "c_t5")
+            t_media  = yn_toggle("ดูสื่อ/ดูหนัง",  "c_t6")
+            t_work   = yn_toggle("ทำงาน/เรียน",   "c_t7")
+            t_other  = yn_toggle("อื่นๆ",          "c_t8")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            with col3:
-                st.markdown("**ข้อมูลทั่วไป**")
-                age           = st.number_input("อายุ (z-score)", -3.0, 3.0, 0.0, 0.1, key="c_age")
-                know          = st.selectbox("รู้จัก Ebisen", [0, 1], key="c_know")
-                believe       = st.selectbox("เชื่อว่า Ebisen ทำจากกุ้ง", [0, 1], key="c_bel")
-                tagline       = st.slider("Calvora Tagline Reflection", -3.0, 3.0, 0.0, 0.1, key="c_tl")
-                calvora_assoc = st.slider("Calvora Association", -3.0, 3.0, 0.0, 0.1, key="c_ca")
-                general_assoc = st.slider("General Snack Association", -3.0, 3.0, 0.0, 0.1, key="c_ga")
-                strength_q    = st.slider("Strength: คุณภาพดี", -3.0, 3.0, 0.0, 0.1, key="c_sq")
+            st.markdown('<div class="input-section"><h4>💪 Strength อื่นๆ</h4>', unsafe_allow_html=True)
+            st_cols = [c for c in behavioral_cols if 'Strength_' in c and c != 'Strength_มีคุณภาพดี (Good quality)']
+            st_vals = {}
+            for c in st_cols:
+                label = c.replace('Strength_', '')
+                st_vals[c] = yn_toggle(label, f"c_{c}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                st.markdown("**Natural Ingredient**")
-                ni_cols = [c for c in behavioral_cols if 'Calvora_Natural_Ingredient_' in c]
-                ni_vals = {c: st.selectbox(c.replace('Calvora_Natural_Ingredient_', ''), [0, 1], key=f"c_{c}") for c in ni_cols}
+        with col3:
+            st.markdown('<div class="input-section"><h4>🌿 Natural Ingredient</h4>', unsafe_allow_html=True)
+            st.caption("สิ่งที่ทำให้เชื่อมั่นว่าใช้วัตถุดิบธรรมชาติ")
+            ni_cols = [c for c in behavioral_cols if 'Calvora_Natural_Ingredient_' in c]
+            ni_vals = {}
+            for c in ni_cols:
+                label = c.replace('Calvora_Natural_Ingredient_', '')
+                ni_vals[c] = yn_toggle(label, f"c_{c}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                st.markdown("**Strength อื่นๆ**")
-                st_cols = [c for c in behavioral_cols if 'Strength_' in c and c != 'Strength_มีคุณภาพดี (Good quality)']
-                st_vals = {c: st.selectbox(c.replace('Strength_', ''), [0, 1], key=f"c_{c}") for c in st_cols}
+            st.markdown('<div class="input-section"><h4>👤 ข้อมูลทั่วไป</h4>', unsafe_allow_html=True)
+            age_label = st.selectbox("ช่วงอายุ", list(AGE_MAP.keys()), key="c_age")
+            age = AGE_MAP[age_label]
+            know   = yn_toggle("รู้จัก Ebisen", "c_know")
+            believe = yn_toggle("เชื่อว่า Ebisen ทำจากกุ้ง", "c_bel")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            submitted_cluster = st.form_submit_button("🔵 พยากรณ์ Cluster", use_container_width=True, type="primary")
-
-        if submitted_cluster:
+        st.markdown("---")
+        if st.button("🔵 พยากรณ์กลุ่มลูกค้า (Cluster)", use_container_width=True, type="primary"):
             input_dict = {c: 0.0 for c in behavioral_cols}
             input_dict.update({
                 'Purchase_Factor_Quality_Ingredients': pf_quality,
@@ -256,6 +326,9 @@ elif page == "🔮 พยากรณ์ลูกค้าใหม่":
                 'Time_Working_Studying': t_work,
                 'Time_Other':            t_other,
                 'Strength_มีคุณภาพดี (Good quality)': strength_q,
+                'Calvora_Association_Calvora_Association':       calvora_assoc,
+                'Calvora_Association_General_Snack_Association': general_assoc,
+                'Calvora_Tagline_Reflection': tagline,
             })
             input_dict.update(ni_vals)
             input_dict.update(st_vals)
@@ -265,13 +338,11 @@ elif page == "🔮 พยากรณ์ลูกค้าใหม่":
             X_p     = models['pca'].transform(X_s)
             cluster = int(models['kmeans'].predict(X_p)[0]) + 1
 
-            st.markdown("---")
-            st.subheader("📊 ผลการพยากรณ์ Cluster")
             st.markdown(f"""
             <div class="result-box">
-                <h3 style="margin:0 0 10px">กลุ่มลูกค้า (Cluster_ID)</h3>
+                <h3 style="margin:0 0 10px">📊 ผลการพยากรณ์ Cluster</h3>
                 <span class="cluster-badge" style="background:{CLUSTER_COLORS[cluster]}22;
-                      color:{CLUSTER_COLORS[cluster]};border:2px solid {CLUSTER_COLORS[cluster]};font-size:1.1rem">
+                      color:{CLUSTER_COLORS[cluster]};border:2px solid {CLUSTER_COLORS[cluster]};font-size:1.15rem;padding:8px 24px">
                     {CLUSTER_NAMES[cluster]}
                 </span>
             </div>
@@ -283,70 +354,78 @@ elif page == "🔮 พยากรณ์ลูกค้าใหม่":
                 3: "สนใจเรื่องสุขภาพและความหลากหลายของรสชาติ มีแนวโน้มลองสินค้าใหม่สูง",
             }
             st.info(f"💡 **ลักษณะกลุ่ม:** {cluster_desc[cluster]}")
-            st.caption("หมายเหตุ: โมเดลนี้ใช้ PCA(3 components) + KMeans K=3 — Silhouette Score = 0.354")
+            st.caption("โมเดล: PCA(3 components) + KMeans K=3 — Silhouette Score = 0.354")
 
     # ==========================================
     # TAB 2: พยากรณ์ Sales Opportunity
     # ==========================================
     with tab_sales:
         st.subheader("💰 พยากรณ์ Sales Opportunity")
-        st.caption("ใช้ข้อมูลทัศนคติและ Cluster_ID → ผ่าน StandardScaler + Random Forest / LR / DT")
+        st.caption("ใช้ข้อมูลทัศนคติและ Cluster_ID → StandardScaler + Best Model จาก RF / LR / DT")
         st.markdown("---")
 
-        with st.form("sales_form"):
-            st.markdown("**📋 กรอกข้อมูลทัศนคติและความเชื่อ**")
+        col1, col2 = st.columns(2)
 
-            col1, col2 = st.columns(2)
+        with col1:
+            st.markdown('<div class="input-section"><h4>🛒 ปัจจัยการซื้อ</h4>', unsafe_allow_html=True)
+            s_pf_quality  = st.slider("คุณภาพวัตถุดิบ",     -3.0, 3.0, 0.0, 0.1, key="s_pf_q")
+            s_pf_flavors  = st.slider("ความหลากหลายรส",     -3.0, 3.0, 0.0, 0.1, key="s_pf_f")
+            s_pf_crispy   = st.slider("ความกรอบ",            -3.0, 3.0, 0.0, 0.1, key="s_pf_c")
+            s_pf_healthy  = st.slider("เพื่อสุขภาพ",         -3.0, 3.0, 0.0, 0.1, key="s_pf_h")
+            s_strength_q  = st.slider("Strength: คุณภาพดี", -3.0, 3.0, 0.0, 0.1, key="s_sq")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            with col1:
-                st.markdown("**ปัจจัยการซื้อ**")
-                s_pf_quality  = st.slider("คุณภาพวัตถุดิบ",     -3.0, 3.0, 0.0, 0.1, key="s_pf_q")
-                s_pf_flavors  = st.slider("ความหลากหลายรส",     -3.0, 3.0, 0.0, 0.1, key="s_pf_f")
-                s_pf_crispy   = st.slider("ความกรอบ",            -3.0, 3.0, 0.0, 0.1, key="s_pf_c")
-                s_pf_healthy  = st.slider("เพื่อสุขภาพ",         -3.0, 3.0, 0.0, 0.1, key="s_pf_h")
-                s_strength_q  = st.slider("Strength: คุณภาพดี", -3.0, 3.0, 0.0, 0.1, key="s_sq")
+            st.markdown('<div class="input-section"><h4>🔗 Association</h4>', unsafe_allow_html=True)
+            s_calvora_assoc = st.slider("Calvora Association",       -3.0, 3.0, 0.0, 0.1, key="s_ca")
+            s_general_assoc = st.slider("General Snack Association", -3.0, 3.0, 0.0, 0.1, key="s_ga")
+            s_tagline       = st.slider("Tagline Reflection",        -3.0, 3.0, 0.0, 0.1, key="s_tl")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                st.markdown("**Calvora Association**")
-                s_calvora_assoc = st.slider("Calvora Association",       -3.0, 3.0, 0.0, 0.1, key="s_ca")
-                s_general_assoc = st.slider("General Snack Association", -3.0, 3.0, 0.0, 0.1, key="s_ga")
+        with col2:
+            st.markdown('<div class="input-section"><h4>🧠 ทัศนคติและความเชื่อ</h4>', unsafe_allow_html=True)
+            s_believe = yn_toggle("เชื่อว่า Ebisen ทำจากกุ้ง", "s_bel")
+            s_know    = yn_toggle("รู้จัก Ebisen",              "s_know")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            with col2:
-                st.markdown("**ทัศนคติและความเชื่อ**")
-                s_tagline  = st.slider("Calvora Tagline Reflection", -3.0, 3.0, 0.0, 0.1, key="s_tl")
-                s_believe  = st.selectbox("เชื่อว่า Ebisen ทำจากกุ้ง", [0, 1], key="s_bel")
-                s_know     = st.selectbox("รู้จัก Ebisen",              [0, 1], key="s_know")
-                s_age      = st.number_input("อายุ (z-score)", -3.0, 3.0, 0.0, 0.1, key="s_age")
+            st.markdown('<div class="input-section"><h4>👤 ข้อมูลทั่วไป</h4>', unsafe_allow_html=True)
+            s_age_label = st.selectbox("ช่วงอายุ", list(AGE_MAP.keys()), key="s_age")
+            s_age = AGE_MAP[s_age_label]
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                st.markdown("**Cluster (จากส่วนที่ 1)**")
-                st.caption("ถ้าพยากรณ์ Cluster มาแล้ว ให้ใส่ผลที่ได้ — ถ้าไม่รู้ให้ใส่ 0")
-                s_cluster = st.selectbox("Cluster_ID", [0, 1, 2, 3],
-                                         format_func=lambda x: f"ไม่ทราบ" if x == 0 else CLUSTER_NAMES[x],
-                                         key="s_cluster")
+            st.markdown('<div class="input-section"><h4>🔵 Cluster_ID (จากส่วนที่ 1)</h4>', unsafe_allow_html=True)
+            st.caption("ใส่ผลจากส่วนที่ 1 — ถ้ายังไม่ได้พยากรณ์ เลือก 'ไม่ทราบ'")
+            s_cluster = st.radio(
+                "_",
+                options=[0, 1, 2, 3],
+                format_func=lambda x: "ไม่ทราบ" if x == 0 else CLUSTER_NAMES[x].split("—")[1].strip(),
+                horizontal=True,
+                key="s_cluster",
+                label_visibility="collapsed",
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            submitted_sales = st.form_submit_button("💰 พยากรณ์ Sales Opportunity", use_container_width=True, type="primary")
-
-        if submitted_sales:
+        st.markdown("---")
+        if st.button("💰 พยากรณ์ Sales Opportunity", use_container_width=True, type="primary"):
             quality_seeker = s_pf_quality + s_pf_healthy
             brand_trust    = s_believe + s_tagline
-            cluster_val    = s_cluster if s_cluster != 0 else 2  # default กลุ่มกลาง
+            cluster_val    = s_cluster if s_cluster != 0 else 2
 
             sup_input = {
-                'Purchase_Factor_Quality_Ingredients':       s_pf_quality,
-                'Calvora_Tagline_Reflection':                s_tagline,
-                'Believe_Ebisen_Shrimp':                     s_believe,
-                'Purchase_Factor_Many_Flavors':              s_pf_flavors,
-                'Purchase_Factor_Healthy':                   s_pf_healthy,
+                'Purchase_Factor_Quality_Ingredients':           s_pf_quality,
+                'Calvora_Tagline_Reflection':                    s_tagline,
+                'Believe_Ebisen_Shrimp':                         s_believe,
+                'Purchase_Factor_Many_Flavors':                  s_pf_flavors,
+                'Purchase_Factor_Healthy':                       s_pf_healthy,
                 'Calvora_Association_General_Snack_Association': s_general_assoc,
-                'Purchase_Factor_Crispy':                    s_pf_crispy,
-                'Age':                                       s_age,
-                'Know_Ebisen':                               s_know,
-                'Strength_มีคุณภาพดี (Good quality)':        s_strength_q,
-                'Calvora_Association_Calvora_Association':   s_calvora_assoc,
-                'Cluster_ID':                                cluster_val,
-                'Quality_Seeker_Score':                      quality_seeker,
-                'Brand_Trust_Score':                         brand_trust,
+                'Purchase_Factor_Crispy':                        s_pf_crispy,
+                'Age':                                           s_age,
+                'Know_Ebisen':                                   s_know,
+                'Strength_มีคุณภาพดี (Good quality)':            s_strength_q,
+                'Calvora_Association_Calvora_Association':       s_calvora_assoc,
+                'Cluster_ID':                                    cluster_val,
+                'Quality_Seeker_Score':                          quality_seeker,
+                'Brand_Trust_Score':                             brand_trust,
             }
-
             sup_df     = pd.DataFrame([[sup_input.get(f, 0) for f in models['sup_features']]],
                                        columns=models['sup_features'])
             sup_scaled = models['sup_scaler'].transform(sup_df)
@@ -354,18 +433,16 @@ elif page == "🔮 พยากรณ์ลูกค้าใหม่":
 
             st.markdown("---")
             st.subheader("📊 ผลการพยากรณ์ Sales Opportunity")
-
             if sales_pred == 1:
                 st.success("✅ **มีโอกาสซื้อ (Sales Opportunity = 1)**\n\nลูกค้ากลุ่มนี้มีแนวโน้มที่จะทดลองสินค้าใหม่หรือรสชาติที่เข้มข้นขึ้น")
             else:
                 st.warning("⚠️ **โอกาสน้อย (Sales Opportunity = 0)**\n\nลูกค้ากลุ่มนี้ยังไม่พร้อมทดลองสินค้าใหม่ในตอนนี้")
 
-            # แสดง feature ที่มีผลต่อการตัดสินใจ
             c1, c2, c3 = st.columns(3)
             c1.metric("Quality Seeker Score", f"{quality_seeker:.2f}")
             c2.metric("Brand Trust Score",    f"{brand_trust:.2f}")
             c3.metric("Cluster ที่ใช้",        f"C{cluster_val}" if s_cluster != 0 else "C2 (default)")
-            st.caption("หมายเหตุ: โมเดลนี้ใช้ StratifiedKFold 5-fold CV เพื่อเลือก best model จาก Random Forest / Logistic Regression / Decision Tree")
+            st.caption("โมเดล: StratifiedKFold 5-fold CV — เลือก best จาก Random Forest / Logistic Regression / Decision Tree")
 
 # ==========================================
 # PAGE 3: วิเคราะห์ Clustering
