@@ -253,11 +253,6 @@ plt.show()
 # ==========================================
 # 10. บันทึก Pipeline
 # ==========================================
-joblib.dump(scaler,          'scaler.pkl')
-joblib.dump(pca_for_cluster, 'pca.pkl')
-joblib.dump(kmeans_final,    'kmeans.pkl')
-joblib.dump(behavioral_cols, 'behavioral_cols.pkl')
-
 df.to_csv(f"BU_Data_{optimal_k}_Segments_Final_Complete.csv", index=False)
 
 print(f"\nรันเสร็จสมบูรณ์!")

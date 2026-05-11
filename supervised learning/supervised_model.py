@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
-from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -49,7 +51,6 @@ features = [
     "Know_Ebisen",
     "Strength_มีคุณภาพดี (Good quality)",
     "Calvora_Association_Calvora_Association",
-    "Cluster_ID",            # เพิ่มจาก unsupervised
     "Quality_Seeker_Score",
     "Brand_Trust_Score",
 ]
@@ -151,3 +152,65 @@ joblib.dump(available_features, 'supervised_features.pkl')
 
 print(f"\n✅ Best Model: {best_name}  (CV F1-Macro: {best_cv_f1:.4f})")
 print("✅ บันทึก: supervised_model.pkl, supervised_scaler.pkl, supervised_features.pkl")
+
+cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(6, 5))
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=["Low Opportunity", "High Opportunity"],
+    yticklabels=["Low Opportunity", "High Opportunity"]
+)
+
+plt.title("Confusion Matrix: Sales Opportunity Prediction")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.tight_layout()
+plt.savefig("confusion_matrix_sales_opportunity.png", dpi=300)
+plt.show()
+
+if hasattr(best_model_obj, 'coef_'):
+    # สำหรับ Logistic Regression
+    importance_vals = best_model_obj.coef_[0]
+    importance_type = "Coefficient"
+elif hasattr(best_model_obj, 'feature_importances_'):
+    # สำหรับ Random Forest และ Decision Tree
+    importance_vals = best_model_obj.feature_importances_
+    importance_type = "Feature Importance"
+else:
+    importance_vals = np.zeros(len(available_features))
+    importance_type = "Importance"
+
+coef_df = pd.DataFrame({
+    "Feature": available_features,
+    importance_type: importance_vals
+})
+
+# ใช้ค่า Absolute เพื่อหาฟีเจอร์ที่มีผลกระทบแรงที่สุด (ไม่ว่าบวกหรือลบ)
+coef_df["Abs_Importance"] = coef_df[importance_type].abs()
+
+coef_df = coef_df.sort_values(
+    by="Abs_Importance",
+    ascending=False
+).head(10)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(
+    data=coef_df,
+    x="Abs_Importance",
+    y="Feature",
+    palette="viridis"
+)
+
+plt.title(f"Top 10 Feature Effects: Sales Opportunity ({best_name})")
+plt.xlabel("Effect Strength (Absolute Value)")
+plt.ylabel("Feature")
+plt.tight_layout()
+plt.savefig("feature_effect_sales_opportunity.png", dpi=300)
+plt.show()
+
+print("\nสร้าง Visualization ใหม่เสร็จแล้ว")
+print("- confusion_matrix_sales_opportunity.png")
+print("- feature_effect_sales_opportunity.png")
