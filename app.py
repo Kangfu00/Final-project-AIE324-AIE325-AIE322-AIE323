@@ -90,7 +90,7 @@ behavioral_cols = [
 CLUSTER_NAMES = {
     1: "🔵 Cluster 1 — Casual Snacker",
     2: "🟠 Cluster 2 — Quality Seeker",
-    3: "🔴 Cluster 3 — Health Conscious",
+    3: "🔴 Cluster 3 — Verification Seeker",
 }
 CLUSTER_COLORS = {1: "#4e79a7", 2: "#f28e2b", 3: "#e15759"}
 

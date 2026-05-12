@@ -247,7 +247,7 @@ for ax, (col, title) in zip(axes.flatten(), pairs):
     ax.set_ylabel(f'PCA 2 ({var2:.1f}%)', fontsize=9)
     ax.grid(True, linestyle='--', alpha=0.3)
 plt.suptitle('เปรียบเทียบการแบ่งกลุ่มของทั้ง 4 โมเดล', fontsize=18, fontweight='bold')
-plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.tight_layout(rect=[0, 0.05, 1, 0.95], h_pad=3.0)
 plt.show()
 
 # ==========================================
