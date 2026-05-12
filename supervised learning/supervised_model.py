@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 
 import warnings
 warnings.filterwarnings('ignore')
-
+plt.rcParams['font.family'] = 'Tahoma' 
 # ==========================================
 # 1. โหลดข้อมูลที่มี Cluster_ID จาก unsupervised แล้ว
 # ==========================================
@@ -133,15 +133,24 @@ for name, model in models.items():
 best_model_obj.fit(X_scaled, y)
 
 # ==========================================
-# 8. Feature Importance (ถ้าเป็น Random Forest)
+# 8. Feature Importance / Coefficients
 # ==========================================
-if best_name == "Random Forest":
-    importance = pd.DataFrame({
-        "Feature":    available_features,
-        "Importance": best_model_obj.feature_importances_
-    }).sort_values("Importance", ascending=False)
-    print(f"\nTop Features ({best_name}):")
-    print(importance.to_string(index=False))
+if hasattr(best_model_obj, 'coef_'):
+    # สำหรับ Logistic Regression
+    importance_vals = best_model_obj.coef_[0]
+    importance_type = "Coefficient"
+else:
+    # สำหรับ Random Forest หรือ Decision Tree
+    importance_vals = best_model_obj.feature_importances_
+    importance_type = "Feature Importance"
+
+importance = pd.DataFrame({
+    "Feature":    available_features,
+    importance_type: importance_vals
+}).sort_values(importance_type, ascending=False)
+
+print(f"\nTop Features ({best_name} - {importance_type}):")
+print(importance.to_string(index=False))
 
 # ==========================================
 # 9. บันทึก Pipeline ทั้งชุด (สำหรับ Streamlit)
@@ -170,6 +179,36 @@ plt.ylabel("Actual")
 plt.tight_layout()
 plt.savefig("confusion_matrix_sales_opportunity.png", dpi=300)
 plt.show()
+
+# ==========================================
+# สร้างกราฟ Pie Chart การกระจายตัวของ Sales Opportunity
+# ==========================================
+sales_counts = df["Sales_Opportunity"].value_counts()
+
+# กำหนดสีให้คล้ายกับในสไลด์ (สีเขียวอมฟ้า และ สีเทาอ่อน)
+colors = ['#16a085', '#e2e6e9'] 
+# หากค่า 0 มีมากกว่า 1 ให้สลับสี เพื่อให้สีเขียวตรงกับ High Opportunity เสมอ
+if sales_counts.index[0] == 0:
+    colors = ['#e2e6e9', '#16a085']
+
+plt.figure(figsize=(6, 6))
+plt.pie(
+    sales_counts, 
+    labels=['High Opportunity (1)', 'Low Opportunity (0)'] if sales_counts.index[0] == 1 else ['Low Opportunity (0)', 'High Opportunity (1)'], 
+    autopct='%1.0f%%', 
+    colors=colors, 
+    startangle=90,
+    textprops={'fontsize': 12}
+)
+
+plt.title("การกระจาย Sales Opportunity", fontsize=14, fontweight='bold')
+plt.tight_layout()
+
+# บันทึกเป็นรูปภาพ
+plt.savefig("pie_chart_sales_opportunity.png", dpi=300)
+plt.show()
+
+print("\nสร้างกราฟ Pie Chart สำเร็จ! บันทึกไฟล์ชื่อ pie_chart_sales_opportunity.png")
 
 if hasattr(best_model_obj, 'coef_'):
     # สำหรับ Logistic Regression

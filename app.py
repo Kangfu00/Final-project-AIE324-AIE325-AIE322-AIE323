@@ -378,26 +378,44 @@ elif page == "📊 วิเคราะห์ Clustering":
             st.warning("ข้อมูล Strength ไม่เพียงพอสำหรับ Radar Chart")
         else:
             cluster_radar = df.groupby('Cluster_ID')[radar_cols].mean().reset_index()
-            categories = [c.replace('Strength_', '') for c in radar_cols]
+
+            # ตัดชื่อให้สั้นและอ่านง่าย — ตัด parentheses ภาษาอังกฤษออก เก็บแค่ภาษาไทย
+            import re
+            def shorten(name):
+                name = name.replace('Strength_', '')
+                name = re.sub(r'\s*\(.*?\)', '', name).strip()  # ตัด (...)
+                return name
+
+            categories = [shorten(c) for c in radar_cols]
             N = len(categories)
             angles = [n / float(N) * 2 * pi for n in range(N)] + [0]
 
-            fig = plt.figure(figsize=(8, 8))
+            # ขยาย figure และเพิ่ม padding รอบกราฟให้ label ไม่ชนกัน
+            fig = plt.figure(figsize=(10, 10))
             ax = fig.add_subplot(111, polar=True)
             ax.set_theta_offset(pi / 2)
             ax.set_theta_direction(-1)
-            plt.xticks(angles[:-1], categories, fontsize=10)
+
+            # เพิ่มระยะห่าง label จากขอบกราฟ
+            ax.tick_params(pad=18)
+            plt.xticks(angles[:-1], categories, fontsize=11, fontweight='bold')
+
+            # เส้น gridline ให้ดูชัดขึ้น
+            ax.set_rlabel_position(30)
+            ax.yaxis.set_tick_params(labelsize=9)
+            ax.grid(color='grey', linestyle='--', linewidth=0.5, alpha=0.5)
 
             for i in range(len(cluster_radar)):
                 cid = int(cluster_radar.loc[i, 'Cluster_ID'])
                 values = cluster_radar.loc[i, radar_cols].values.flatten().tolist()
                 values += values[:1]
-                ax.plot(angles, values, linewidth=2,
+                ax.plot(angles, values, linewidth=2.5,
                         label=CLUSTER_NAMES[cid], color=CLUSTER_COLORS[cid])
-                ax.fill(angles, values, alpha=0.1, color=CLUSTER_COLORS[cid])
+                ax.fill(angles, values, alpha=0.12, color=CLUSTER_COLORS[cid])
 
-            plt.title('Strength ที่รับรู้แต่ละ Cluster', fontsize=14, y=1.1, fontweight='bold')
-            plt.legend(loc='center left', bbox_to_anchor=(1.15, 0.5))
-            plt.tight_layout(rect=[0, 0, 0.85, 1])
+            plt.title('Strength ที่รับรู้แต่ละ Cluster', fontsize=15,
+                      y=1.12, fontweight='bold')
+            plt.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), fontsize=11)
+            plt.tight_layout(pad=3.0)
             st.pyplot(fig)
             plt.close()
