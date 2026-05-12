@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE / OS Files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Data & Models (เปิดคอมเมนต์หากไม่ต้องการนำไฟล์ข้อมูลขึ้น GitHub)
+# *.csv
+*.pkl
+
+*.png

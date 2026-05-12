@@ -1,128 +1,106 @@
-### 🌿 กฎการทำงานกับ Git (Git Workflow)
+# 🍤 Calvora Customer Insights
+
+โปรเจกต์นี้เป็นระบบวิเคราะห์และพยากรณ์โอกาสการขาย (Sales Opportunity) สำหรับแบรนด์ขนมขบเคี้ยว **Calvora** (กรณีศึกษา) ด้วยเทคนิค Machine Learning และ Data Science โดยมีการแบ่งกลุ่มลูกค้า (Customer Segmentation) ออกเป็น 3 กลุ่ม เพื่อหาอินไซต์และพยากรณ์แนวโน้มพฤติกรรมผ่าน Web Application ที่สร้างด้วย Streamlit
+
+## 🚀 ฟีเจอร์หลัก (Key Features)
+- **🏠 ภาพรวม (Overview):** สรุปสัดส่วน Demographics ของลูกค้าทั้ง 3 Clusters พร้อมแสดง % Sales Opportunity ในแต่ละกลุ่ม
+- **💰 พยากรณ์ Sales Opportunity:** โมเดล Machine Learning (RF/LR/DT) สำหรับประเมินว่าลูกค้าที่มีทัศนคติและพฤติกรรมตามที่ระบุ จะมีโอกาสทดลองสินค้าใหม่หรือรสชาติที่เข้มข้นขึ้นหรือไม่
+- **📊 วิเคราะห์ Clustering:** นำเสนอผลลัพธ์ผ่าน PCA Scatter Plot (2D), Heatmap เปรียบเทียบค่าเฉลี่ยพฤติกรรม, และ Radar Chart วิเคราะห์จุดเด่น (Strength) ที่แต่ละกลุ่มรับรู้
+
+## 🛠️ โครงสร้างไฟล์ (File Structure)
+- `app.py`: ไฟล์หลักสำหรับรัน Web Application ด้วย Streamlit
+- `data.py`: สคริปต์สำหรับ Data Preprocessing, Data Cleaning, การทำ Encoding, สกัดฟีเจอร์, และ Imputation โดยแปลงไฟล์ `BU_Data.csv` เป็น `BU_Data_transformed.csv`
+- โมเดลที่เทรนแล้ว (`.pkl`): `supervised_model.pkl`, `supervised_scaler.pkl`, `supervised_features.pkl`
+
+---
+
+## 💻 วิธีการรันโปรเจกต์ (How to Run)
+
+1. ติดตั้งไลบรารีที่จำเป็น:
+```bash
+pip install streamlit pandas numpy scikit-learn matplotlib seaborn joblib
+```
+รันแอปพลิเคชัน:
+```Bash
+streamlit run app.py
+```
+🌿 กฎการทำงานกับ Git (Git Workflow)
 เพื่อป้องกันไม่ให้โค้ดพังหรือตีกันเวลารวมงาน ห้าม Push โค้ดเข้าสาขา main โดยตรงเด็ดขาด! ให้ทุกคนสร้าง Branch ของตัวเองสำหรับทำงานแต่ละส่วน โดยทำตามขั้นตอนดังนี้:
-- Step 1: อัปเดตโค้ดล่าสุดเสมอ
+
+Step 1: อัปเดตโค้ดล่าสุดเสมอ
 ก่อนเริ่มงานใหม่ ให้แน่ใจว่าคุณอยู่ที่สาขา main และดึงโค้ดล่าสุดของเพื่อนๆ มาก่อน
 
 ```Bash
 git checkout main
 git pull origin main
 ```
-- Step 2: สร้างและสลับไปยัง Branch ของตัวเอง
+Step 2: สร้างและสลับไปยัง Branch ของตัวเอง
 สร้าง Branch ใหม่โดยตั้งชื่องานให้ชัดเจน (เช่น ชื่อคุณ/ชื่อฟีเจอร์)
 ตัวอย่างการตั้งชื่อ: feature/kangfu-tools หรือ fix/memory-bug
 
 ```Bash
 git checkout -b feature/ชื่อของคุณ-ชื่องาน
 ```
-(คำสั่ง -b คือการสร้างสาขาใหม่และย้ายเข้าไปทำงานในสาขานั้นทันที)
-
-- Step 3: ทำงานและ Save (Commit)
-เมื่อเขียนโค้ดเสร็จแล้ว ให้ทำการ Save งานลงใน Branch ของคุณ
+Step 3: ทำงานและ Save (Commit)
 
 ```Bash
 git add .
 git commit -m "อธิบายสั้นๆ ว่าอัปเดตอะไรไปบ้าง เช่น Add economy calculator tool"
 ```
-
-- Step 4: อัปโหลด Branch ของคุณขึ้น GitHub (Push)
+Step 4: อัปโหลด Branch ของคุณขึ้น GitHub (Push)
 อัปโหลดสาขาที่คุณเพิ่งทำเสร็จขึ้นไปยัง Repository ของกลุ่ม
 
-``` Bash
+```Bash
 git push origin feature/ชื่อของคุณ-ชื่องาน
 ```
+Step 5: สร้าง Pull Request (PR)
 
-- Step 5: สร้าง Pull Request (PR)
-1. เข้าไปที่หน้าเว็บ GitHub ของโปรเจกต์เรา
-2. กดปุ่ม Compare & pull request แถวๆ กล่องสีเหลืองที่เด้งขึ้นมา
-3. แจ้งเพื่อนในกลุ่มให้ช่วยรีวิว (Review) โค้ด หากไม่มีปัญหา ค่อยกดปุ่ม Merge pull request เพื่อรวมโค้ดเข้าเส้น main
----
+เข้าไปที่หน้าเว็บ GitHub ของโปรเจกต์เรา
 
-### 📄 ข้อมูลของ `BU_Data_transformed.csv`
-ไฟล์ `BU_Data_transformed.csv` เป็นผลลัพธ์จากการรัน `data.py` โดยมีการแปลงข้อมูลและสกัดฟีเจอร์จากไฟล์ต้นฉบับ `BU_Data.csv` แบบสรุปแล้ว
+กดปุ่ม Compare & pull request แถวๆ กล่องสีเหลืองที่เด้งขึ้นมา
 
-#### หมวดหมู่หลักของคอลัมน์
-- `Know_Ebisen` (รู้จัก/เคยทาน Ebisen), `Age` (อายุ), `Gender` (เพศ)
-  - ข้อมูลพื้นฐานของผู้ตอบ
-  - `Know_Ebisen` แปลงเป็นตัวเลขตามระดับความรู้จัก
+แจ้งเพื่อนในกลุ่มให้ช่วยรีวิว (Review) โค้ด หากไม่มีปัญหา ค่อยกดปุ่ม Merge pull request เพื่อรวมโค้ดเข้าเส้น main
 
-- `Calvora_Tagline_Awareness` (รู้หรือไม่ว่า Calvora มี tagline)
-  - แปลงเป็น 1/0
+📄 ข้อมูลของ BU_Data_transformed.csv
+ไฟล์ BU_Data_transformed.csv เป็นผลลัพธ์จากการรัน data.py โดยมีการแปลงข้อมูลและสกัดฟีเจอร์จากไฟล์ต้นฉบับ BU_Data.csv
 
-- `Purchase_Factor_*` (ปัจจัยการซื้อ)
-  - เช่น `Purchase_Factor_Quality_Ingredients` = วัตถุดิบคุณภาพ
-  - เป็นคะแนน Likert 1-5 จากคำถามคุณสมบัติขนมที่มีผลต่อการตัดสินใจซื้อ
+หมวดหมู่หลักของคอลัมน์
+Know_Ebisen, Age, Gender: ข้อมูลพื้นฐานของผู้ตอบ (แปลง Know_Ebisen เป็นตัวเลขตามระดับความรู้จัก)
 
-- `Is_Calvora_*` (คิดว่าเป็นของ Calvora หรือไม่)
-  - เช่น `Is_Calvora_Calvora`, `Is_Calvora_Hanaro`
-  - แปลงเป็น 1 = ใช่, 0 = ไม่ใช่
+Calvora_Tagline_Awareness: รู้หรือไม่ว่า Calvora มี tagline (1/0)
 
-- `Calvora_Tagline_Reflection` (ความเห็นต่อ tagline)
-  - คะแนนว่าตรงกับภาพลักษณ์แบรนด์มากน้อยแค่ไหน
-- `Calvora_Tagline_Interpretation_Category` (ตีความ tagline)
-  - จัดกลุ่มคำตอบเชิงข้อความ เช่น `Natural`, `Positive`, `Negative`, `Other`
+Purchase_Factor_*: ปัจจัยการซื้อ (คะแนน Likert 1-5 จากคำถามคุณสมบัติขนม)
 
-- `Strength_*` (จุดเด่นของผลิตภัณฑ์)
-  - ดัมมี่จากคำตอบว่าผู้ตอบเลือกคุณสมบัติใดบ้าง
-  - 1 = เลือก, 0 = ไม่เลือก
+Is_Calvora_*: คิดว่าเป็นของ Calvora หรือไม่ (1 = ใช่, 0 = ไม่ใช่)
 
-- `Calvora_Natural_Ingredient_*` (ความเชื่อมั่นวัตถุดิบธรรมชาติ)
-  - ตัวอย่างเช่น `Calvora_Natural_Ingredient_การรับรองจากหน่วยงานด้านอาหาร`
-  - 1 = ระบุคุณสมบัตินั้น, 0 = ไม่ระบุ
+Calvora_Tagline_Reflection: คะแนนความสอดคล้องของ tagline กับภาพลักษณ์แบรนด์
 
-- `Known_Snack_*` (รู้จักผลิตภัณฑ์)
-  - ดัมมี่จากคำตอบว่า “รู้จักผลิตภัณฑ์ใดบ้าง”
-  - 1 = รู้จัก, 0 = ไม่รู้จัก
+Calvora_Tagline_Interpretation_Category: จัดกลุ่มคำตอบการตีความ เช่น Natural, Positive, Negative, Other
 
-- `Tasted_Snack_*` (เคยทานผลิตภัณฑ์)
-  - ดัมมี่จากคำตอบว่า “เคยทานแบรนด์ใดบ้าง”
-  - 1 = เคยทาน, 0 = ไม่เคยทาน
+Strength_*: ดัมมี่คุณสมบัติและจุดเด่นของผลิตภัณฑ์ที่ผู้ตอบเลือก (1 = เลือก, 0 = ไม่เลือก)
 
-- `Ebisen_Flavor_*` (รสชาติ Ebisen ที่เคยทาน)
-  - ดัมมี่จากรสชาติของ Ebisen เช่น `Ebisen_Flavor_Extra BBQ`
+Calvora_Natural_Ingredient_*: ความเชื่อมั่นในวัตถุดิบธรรมชาติ (1 = ระบุ, 0 = ไม่ระบุ)
 
-- `Calvora_Image_*` (ภาพที่นึกถึง Calvora)
-  - ดัมมี่จากคำตอบภาพที่ผู้ตอบนึกถึง
+Known_Snack_* / Tasted_Snack_*: ผลิตภัณฑ์และแบรนด์ที่รู้จักหรือเคยทาน (ดัมมี่ 1/0)
 
-- `Time_*` และ `Snack_Time_Category` (โอกาส/เวลาที่ทานขนม)
-  - แปลงจากคำตอบข้อความเป็นหมวด เช่น `Watching_Media`, `Free_Time`, `Hungry`, `Party_Drinking`
+Ebisen_Flavor_*: รสชาติ Ebisen ที่เคยทาน
 
-- `Calvora_Association_*` (นึกถึง Calvora แล้วคิดถึงอะไร)
-  - แยกเป็นกลุ่มเช่น `Bax_Association`, `General_Snack_Association`, `Shrimp_Chip_Association`
+Calvora_Image_*: ดัมมี่ภาพที่นึกถึงแบรนด์
 
-- `Natural_Brand_Association_Category` (แบรนด์ที่นึกถึงจากวัตถุดิบธรรมชาติ)
+Time_* และ Snack_Time_Category: โอกาสและเวลาที่ทานขนม เช่น Watching_Media, Free_Time
 
-- `Why_Choose_Ebisen_Category` (เหตุผลเลือกทาน Ebisen)
-  - เช่น `Delicious` (อร่อย), `Try` (อยากลอง), `Saltier` (เค็มกว่า), `Brand` (แบรนด์), `Affordable` (ราคาถูก)
+Calvora_Association_*: นึกถึง Calvora แล้วคิดถึงอะไร (เช่น Bax_Association)
 
-- `Desired_New_Flavor_Category` (รสชาติใหม่ที่อยากให้มี)
-  - เช่น `Spicy` (เผ็ด), `Cheese` (ชีส), `BBQ`, `Nori` (สาหร่าย), `Mala` (หมาล่า)
+Natural_Brand_Association_Category: แบรนด์ที่นึกถึงเมื่อพูดถึงวัตถุดิบธรรมชาติ
 
-- `Reason_Never_Tried_Category` (เหตุผลที่ยังไม่เคยทาน)
-  - เช่น `Never_Had_Chance` (ยังไม่มีโอกาส), `Not_Attractive` (ไม่ดึงดูด), `Not_Snack_Person` (ไม่ค่อยทานขนม)
+Why_Choose_Ebisen_Category: เหตุผลที่เลือกทาน (เช่น อร่อย, อยากลอง, ราคาถูก)
 
-- `Expected_Stronger_Flavor_Category` (ความคาดหวังรสเข้มข้น)
-  - เช่น `BBQ`, `Shrimp_Flavor` (รสกุ้ง), `More_Intense_Flavor`
+Desired_New_Flavor_Category / Expected_Stronger_Flavor_Category: รสชาติใหม่และระดับความเข้มข้นที่อยากให้มี
 
-- `Why_Like_Stronger_Flavor_Category` (เหตุผลชอบรสเข้มข้น)
-  - เช่น `Like_Spicy_Flavor`, `Like_Delicious_Flavor`
+Why_Like_Stronger_Flavor_Category: เหตุผลที่ชอบรสเข้มข้น
 
-- `Strong_Flavor_Occasion_Category` (โอกาสที่เหมาะกับรสเข้มข้น)
-  - เช่น `Watching_Media`, `Working_Studying`, `Party_Drinking`
+Strong_Flavor_Occasion_Category: โอกาสที่เหมาะกับขนมรสเข้มข้น
 
-- `Reason_Not_Willing_Category` (เหตุผลไม่อยากลอง)
-  - เช่น `Not_Delicious`, `Already_Salty`, `Indifferent`
+Reason_Never_Tried_Category / Reason_Not_Willing_Category: เหตุผลที่ยังไม่เคยทานหรือไม่อยากลอง
 
-- `Believe_Ebisen_Shrimp` (เชื่อว่า Ebisen ทำมาจากกุ้งแท้)
-- `Try_New_Flavor` (อยากลองรสใหม่)
-- `Believe_Ebisen_Shrimp_2` (เชื่ออีกครั้งในคำถามชุดที่ 2)
-- `Like_Stronger_Ebisen_Flavor` (ชอบรสเข้มข้น)
-  - เป็นคอลัมน์ตัวชี้วัด 1/0 จากคำตอบตรงๆ
-  - 1 = ใช่ / อยากลอง / เชื่อ, 0 = ไม่ใช่ / ไม่อยาก
-
-#### การใช้งาน `BU_Data_transformed.csv`
-- คอลัมน์ที่ขึ้นต้นด้วย `Known_Snack_`, `Tasted_Snack_`, `Ebisen_Flavor_`, `Strength_`, `Calvora_Natural_Ingredient_`, `Calvora_Image_`, `Time_`, `Calvora_Association_` เป็นฟีเจอร์ดัมมี่
-- ดัมมี่ = 1 หมายถึง “มี/เลือก/รู้จัก/เคยทาน” และ 0 หมายถึง “ไม่มี/ไม่เลือก/ไม่รู้จัก/ไม่เคยทาน”
-- `*Category` คือกลุ่มคำตอบจากข้อความที่แปลงเป็น label แล้ว
-- เหมาะสำหรับนำไปวิเคราะห์เชิงสถิติ หรือใช้สร้างโมเดลต่อ
-
-> สรุป: `BU_Data_transformed.csv` เป็นไฟล์ที่เตรียมข้อมูลให้พร้อมสำหรับการวิเคราะห์ต่อ ทั้งกลุ่มคำตอบเชิงตัวเลข ดัมมี่ และกลุ่มข้อความที่จัดหมวดแล้ว
+Believe_Ebisen_Shrimp / Try_New_Flavor / Like_Stronger_Ebisen_Flavor: การตอบรับเชิงทัศนคติต่อการเชื่อว่าทำจากกุ้งแท้และความต้องการลองรสใหม่ (1/0)
