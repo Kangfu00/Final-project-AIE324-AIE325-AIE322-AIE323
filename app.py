@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
 from math import pi
-
+from streamlit_gsheets import GSheetsConnection
 matplotlib.rcParams['font.family'] = 'Tahoma'
 
 # ==========================================
@@ -73,7 +73,11 @@ def load_data():
         st.stop()
 
 models = load_models()
-df     = load_data()
+@st.cache_data(ttl=600)
+def load_data():
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(worksheet="Data") # ดึงข้อมูลจากชีตชื่อ Data
+    return df
 
 # behavioral_cols สำหรับ heatmap/radar (ใช้จาก unsupervised output)
 behavioral_cols = [
