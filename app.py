@@ -88,17 +88,16 @@ models = load_models()
 @st.cache_data(ttl=600)
 def load_data():
     try:
-        # วิธีนี้เสถียรที่สุดสำหรับ Public Google Sheets
-        # สังเกตว่าเราเปลี่ยนท้าย URL เป็น /export?format=csv&gid=0
-        sheet_url = "https://docs.google.com/spreadsheets/d/1d4Jz46oqfR1uy15SmCgU8lvczsTBLflBLkjjA2daC-U/edit?gid=1010344891#gid=1010344891"
+        # 🔴 จุดที่ต้องแก้คือบรรทัดนี้: เปลี่ยน URL ให้เป็น format นี้เป๊ะๆ
+        # เอา ID ของไฟล์คุณมาต่อตรงกลาง (1d4Jz46oqfR1uy15SmCgU8lvczsTBLflBLkjjA2daC-U)
+        sheet_url = "https://docs.google.com/spreadsheets/d/1d4Jz46oqfR1uy15SmCgU8lvczsTBLflBLkjjA2daC-U/export?format=csv&gid=1010344891"
         
-        # ใช้ pandas อ่านตรงๆ ได้เลย
+        # ใช้ pandas อ่าน
         df = pd.read_csv(sheet_url)
         return df
     
     except Exception as e:
         st.error(f"❌ ไม่สามารถโหลดข้อมูลจาก Google Sheets ได้: {e}")
-        # ถ้าโหลดไม่ได้ ให้สลับมาอ่านไฟล์ CSV ในเครื่องแทน
         return pd.read_csv('BU_Data_3_Segments_Final_Complete.csv')
 
 # เรียกใช้งานข้อมูล
