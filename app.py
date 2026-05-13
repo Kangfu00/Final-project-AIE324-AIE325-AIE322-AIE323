@@ -7,6 +7,7 @@ import matplotlib
 import seaborn as sns
 from math import pi
 from streamlit_gsheets import GSheetsConnection
+import matplotlib.font_manager as fm
 
 font_path = 'tahoma.ttf' 
 
