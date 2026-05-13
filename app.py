@@ -90,7 +90,7 @@ def load_data():
     try:
         # วิธีนี้เสถียรที่สุดสำหรับ Public Google Sheets
         # สังเกตว่าเราเปลี่ยนท้าย URL เป็น /export?format=csv&gid=0
-        sheet_url = "https://docs.google.com/spreadsheets/d/1lD7YEFIINgSdKB18HfCTRNqz_MT5rbNikeWRO3d0G-0/export?format=csv&gid=0"
+        sheet_url = "https://docs.google.com/spreadsheets/d/1lD7YEFIINgSdKB18HfCTRNqz_MT5rbNikeWRO3d0G-0/export?format=csv&1156422337#gid=1156422337"
         
         # ใช้ pandas อ่านตรงๆ ได้เลย
         df = pd.read_csv(sheet_url)
