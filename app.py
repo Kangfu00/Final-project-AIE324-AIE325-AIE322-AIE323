@@ -83,7 +83,7 @@ def load_data():
         # ถ้าเป็น Public Sheet ให้ใส่ URL ในสเต็ปที่ 4 หรือใส่ในฟังก์ชันนี้เลยก็ได้
         df = conn.read(
             spreadsheet="https://docs.google.com/spreadsheets/d/1lD7YEFIINgSdKB18HfCTRNqz_MT5rbNikeWRO3d0G-0/edit?usp=sharing",
-            worksheet="Sheet1" # ชื่อแท็บใน Google Sheets
+            worksheet="BU_Data_transformed" # ชื่อแท็บใน Google Sheets
         )
         return df
     except Exception as e:
