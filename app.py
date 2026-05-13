@@ -73,11 +73,26 @@ def load_data():
         st.stop()
 
 models = load_models()
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600) # แคชข้อมูลไว้ 10 นาที เพื่อไม่ให้โหลดใหม่ทุกครั้งที่รีเฟรชหน้า
 def load_data():
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(worksheet="Data") # ดึงข้อมูลจากชีตชื่อ Data
-    return df
+    try:
+        # สร้างการเชื่อมต่อ
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # อ่านข้อมูลจาก Google Sheets
+        # ถ้าเป็น Public Sheet ให้ใส่ URL ในสเต็ปที่ 4 หรือใส่ในฟังก์ชันนี้เลยก็ได้
+        df = conn.read(
+            spreadsheet="https://docs.google.com/spreadsheets/d/your_sheet_id_here/edit#gid=0",
+            worksheet="Sheet1" # ชื่อแท็บใน Google Sheets
+        )
+        return df
+    except Exception as e:
+        st.error(f"❌ ไม่สามารถเชื่อมต่อ Google Sheets ได้: {e}")
+        # ถ้าโหลดไม่ได้ ให้กลับไปโหลดไฟล์ CSV สำรอง (Optional)
+        return pd.read_csv('BU_Data_3_Segments_Final_Complete.csv')
+
+# เรียกใช้งานข้อมูล
+df = load_data()
 
 # behavioral_cols สำหรับ heatmap/radar (ใช้จาก unsupervised output)
 behavioral_cols = [
