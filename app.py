@@ -7,7 +7,15 @@ import matplotlib
 import seaborn as sns
 from math import pi
 from streamlit_gsheets import GSheetsConnection
-matplotlib.rcParams['font.family'] = 'Tahoma'
+
+font_path = 'tahoma.ttf' 
+
+# เพิ่มฟอนต์เข้าระบบของ matplotlib
+fm.fontManager.addfont(font_path)
+prop = fm.FontProperties(fname=font_path)
+
+# สั่งให้ matplotlib ใช้ฟอนต์นี้เป็นค่าเริ่มต้น
+plt.rcParams['font.family'] = prop.get_name()
 
 # ==========================================
 # ตั้งค่าหน้าเว็บ
@@ -50,7 +58,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# โหลด Models
+# โหลด Models และ ข้อมูล
 # ==========================================
 @st.cache_resource
 def load_models():
@@ -64,31 +72,25 @@ def load_models():
         st.error(f"❌ ไม่พบไฟล์โมเดล: {e}\nกรุณารัน supervised_model.py ก่อน")
         st.stop()
 
-@st.cache_data
-def load_data():
-    try:
-        return pd.read_csv('BU_Data_3_Segments_Final_Complete.csv')
-    except FileNotFoundError:
-        st.error("❌ ไม่พบไฟล์ BU_Data_3_Segments_Final_Complete.csv")
-        st.stop()
-
 models = load_models()
-@st.cache_data(ttl=600) # แคชข้อมูลไว้ 10 นาที เพื่อไม่ให้โหลดใหม่ทุกครั้งที่รีเฟรชหน้า
+
+# เหลือ load_data() ไว้อันเดียวพอครับ
+@st.cache_data(ttl=600) # แคชข้อมูลไว้ 10 นาที
 def load_data():
     try:
         # สร้างการเชื่อมต่อ
         conn = st.connection("gsheets", type=GSheetsConnection)
         
         # อ่านข้อมูลจาก Google Sheets
-        # ถ้าเป็น Public Sheet ให้ใส่ URL ในสเต็ปที่ 4 หรือใส่ในฟังก์ชันนี้เลยก็ได้
         df = conn.read(
             spreadsheet="https://docs.google.com/spreadsheets/d/1lD7YEFIINgSdKB18HfCTRNqz_MT5rbNikeWRO3d0G-0/edit?usp=sharing",
-            worksheet="BU_Data_transformed" # ชื่อแท็บใน Google Sheets
+            # 🔴 แก้ไขตรงนี้: เปลี่ยนเป็นชื่อแท็บที่ถูกต้องในไฟล์ Google Sheets ของคุณ
+            worksheet="Sheet1" 
         )
         return df
     except Exception as e:
         st.error(f"❌ ไม่สามารถเชื่อมต่อ Google Sheets ได้: {e}")
-        # ถ้าโหลดไม่ได้ ให้กลับไปโหลดไฟล์ CSV สำรอง (Optional)
+        # ถ้าโหลดจากเน็ตไม่สำเร็จ ให้สลับมาอ่านไฟล์ CSV ในโฟลเดอร์แทนเพื่อกันแอปพัง
         return pd.read_csv('BU_Data_3_Segments_Final_Complete.csv')
 
 # เรียกใช้งานข้อมูล
