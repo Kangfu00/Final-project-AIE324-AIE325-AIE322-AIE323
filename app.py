@@ -8,15 +8,24 @@ import seaborn as sns
 from math import pi
 from streamlit_gsheets import GSheetsConnection
 import matplotlib.font_manager as fm
+import os
 
-font_path = 'tahoma.ttf' 
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
-# เพิ่มฟอนต์เข้าระบบของ matplotlib
-fm.fontManager.addfont(font_path)
-prop = fm.FontProperties(fname=font_path)
+# 2. ระบุชื่อไฟล์ฟอนต์ให้ตรงกับบน GitHub เป๊ะๆ (เปลี่ยน 'tahoma.ttf' ได้ตามชื่อจริง)
+font_file_name = 'tahoma.ttf' 
+font_path = os.path.join(current_dir, font_file_name)
 
-# สั่งให้ matplotlib ใช้ฟอนต์นี้เป็นค่าเริ่มต้น
-plt.rcParams['font.family'] = prop.get_name()
+# 3. เช็คว่ามีไฟล์อยู่จริงไหมก่อนโหลด
+if not os.path.exists(font_path):
+    st.warning(f"⚠️ หาไฟล์ฟอนต์ไม่เจอที่ Path: {font_path} (กราฟอาจแสดงผลภาษาไทยไม่ได้)")
+else:
+    try:
+        fm.fontManager.addfont(font_path)
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+    except Exception as e:
+        st.warning(f"⚠️ โหลดไฟล์ฟอนต์ไม่ได้ ไฟล์อาจจะเสีย: {e}")
 
 # ==========================================
 # ตั้งค่าหน้าเว็บ
