@@ -85,22 +85,20 @@ def load_models():
 models = load_models()
 
 # เหลือ load_data() ไว้อันเดียวพอครับ
-@st.cache_data(ttl=600) # แคชข้อมูลไว้ 10 นาที
+@st.cache_data(ttl=600)
 def load_data():
     try:
-        # สร้างการเชื่อมต่อ
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        # วิธีนี้เสถียรที่สุดสำหรับ Public Google Sheets
+        # สังเกตว่าเราเปลี่ยนท้าย URL เป็น /export?format=csv&gid=0
+        sheet_url = "https://docs.google.com/spreadsheets/d/1lD7YEFIINgSdKB18HfCTRNqz_MT5rbNikeWRO3d0G-0/export?format=csv&gid=0"
         
-        # อ่านข้อมูลจาก Google Sheets
-        df = conn.read(
-            spreadsheet="https://docs.google.com/spreadsheets/d/1lD7YEFIINgSdKB18HfCTRNqz_MT5rbNikeWRO3d0G-0/edit?usp=sharing",
-            # 🔴 แก้ไขตรงนี้: เปลี่ยนเป็นชื่อแท็บที่ถูกต้องในไฟล์ Google Sheets ของคุณ
-            worksheet="Sheet1" 
-        )
+        # ใช้ pandas อ่านตรงๆ ได้เลย
+        df = pd.read_csv(sheet_url)
         return df
+    
     except Exception as e:
-        st.error(f"❌ ไม่สามารถเชื่อมต่อ Google Sheets ได้: {e}")
-        # ถ้าโหลดจากเน็ตไม่สำเร็จ ให้สลับมาอ่านไฟล์ CSV ในโฟลเดอร์แทนเพื่อกันแอปพัง
+        st.error(f"❌ ไม่สามารถโหลดข้อมูลจาก Google Sheets ได้: {e}")
+        # ถ้าโหลดไม่ได้ ให้สลับมาอ่านไฟล์ CSV ในเครื่องแทน
         return pd.read_csv('BU_Data_3_Segments_Final_Complete.csv')
 
 # เรียกใช้งานข้อมูล
